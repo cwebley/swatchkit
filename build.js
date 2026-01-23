@@ -1,50 +1,191 @@
+#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 
-const config = {
-  srcDir: path.join(__dirname, 'src'),
-  cssDir: path.join(__dirname, 'src/css'),
-  patternsDir: path.join(__dirname, 'src/patterns'),
-  layoutFile: path.join(__dirname, 'src/layout.html'),
-  distDir: path.join(__dirname, 'dist'),
-  distCssDir: path.join(__dirname, 'dist/css'),
-  distJsDir: path.join(__dirname, 'dist/js'),
-  outputFile: path.join(__dirname, 'dist/index.html'),
-  outputJsFile: path.join(__dirname, 'dist/js/patterns.js')
-};
+/**
+ * SwatchKit Build Script
+ * Refactored for Phase 1 Expansion
+ */
 
-function build() {
-  console.log('[SwatchKit] Starting build...');
+// --- 1. CLI Argument Parsing ---
+function parseArgs(args) {
+  const options = {
+    command: null,
+    watch: false,
+    config: null,
+    input: null,
+    outDir: null,
+    force: false
+  };
 
-  // 1. Ensure dist directories exist
-  [config.distDir, config.distCssDir, config.distJsDir].forEach(dir => {
+  for (let i = 2; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === 'init') {
+      options.command = 'init';
+    } else if (arg === '-w' || arg === '--watch') {
+      options.watch = true;
+    } else if (arg === '-f' || arg === '--force') {
+      options.force = true;
+    } else if (arg === '-c' || arg === '--config') {
+      // Handle case where flag is last arg
+      if (i + 1 < args.length) {
+        options.config = args[++i];
+      }
+    } else if (arg === '-i' || arg === '--input') {
+      if (i + 1 < args.length) {
+        options.input = args[++i];
+      }
+    } else if (arg === '-o' || arg === '--outDir') {
+      if (i + 1 < args.length) {
+        options.outDir = args[++i];
+      }
+    }
+  }
+  return options;
+}
+
+// --- 2. Config Loading ---
+function loadConfig(configPath) {
+  let finalPath;
+  if (configPath) {
+    finalPath = path.resolve(process.cwd(), configPath);
+  } else {
+    finalPath = path.join(process.cwd(), 'swatchkit.config.js');
+  }
+
+  if (fs.existsSync(finalPath)) {
+    try {
+      console.log(`[SwatchKit] Loading config from ${finalPath}`);
+      return require(finalPath);
+    } catch (e) {
+      console.error('[SwatchKit] Error loading config file:', e.message);
+      return {};
+    }
+  }
+  return {};
+}
+
+// --- 3. Smart Defaults & Path Resolution ---
+function resolveSettings(cliOptions, fileConfig) {
+  const cwd = process.cwd();
+
+  // Helper to find patterns dir
+  function findPatternsDir() {
+    // 1. Explicit input
+    if (cliOptions.input) return path.resolve(cwd, cliOptions.input);
+    if (fileConfig.input) return path.resolve(cwd, fileConfig.input);
+
+    // 2. Search candidates
+    const candidates = ['swatches', 'src/swatches', 'src/patterns'];
+    for (const cand of candidates) {
+      const absPath = path.join(cwd, cand);
+      if (fs.existsSync(absPath)) return absPath;
+    }
+
+    // 3. Fallback default (swatches)
+    return path.join(cwd, 'swatches');
+  }
+
+  const patternsDir = findPatternsDir();
+
+  // Output Dir
+  // Default: public/swatchkit
+  const outDir = cliOptions.outDir 
+    ? path.resolve(cwd, cliOptions.outDir)
+    : (fileConfig.outDir ? path.resolve(cwd, fileConfig.outDir) : path.join(cwd, 'public/swatchkit'));
+
+  // CSS Dir (Legacy support: src/css)
+  const cssDir = path.join(cwd, 'src/css');
+
+  return {
+    patternsDir,
+    outDir,
+    cssDir,
+    // Internal layout template (relative to this script)
+    internalLayout: path.join(__dirname, 'src/layout.html'),
+    // Project specific layout override
+    projectLayout: path.join(patternsDir, '_layout.html'),
+    
+    // Derived paths
+    distCssDir: path.join(outDir, 'css'),
+    distJsDir: path.join(outDir, 'js'),
+    outputFile: path.join(outDir, 'index.html'),
+    outputJsFile: path.join(outDir, 'js/patterns.js')
+  };
+}
+
+// --- 4. Init Command Logic ---
+function runInit(settings, options) {
+  console.log('[SwatchKit] Initializing...');
+
+  // Ensure patterns directory exists
+  if (!fs.existsSync(settings.patternsDir)) {
+    console.log(`Creating patterns directory: ${settings.patternsDir}`);
+    fs.mkdirSync(settings.patternsDir, { recursive: true });
+  }
+
+  const targetLayout = settings.projectLayout;
+  
+  if (fs.existsSync(targetLayout) && !options.force) {
+    console.warn(`Warning: Layout file already exists at ${targetLayout}`);
+    console.warn('Use --force to overwrite.');
+    return;
+  }
+
+  if (fs.existsSync(settings.internalLayout)) {
+    const layoutContent = fs.readFileSync(settings.internalLayout, 'utf-8');
+    fs.writeFileSync(targetLayout, layoutContent);
+    console.log(`Created layout file at ${targetLayout}`);
+  } else {
+    console.error(`Error: Internal layout file not found at ${settings.internalLayout}`);
+    process.exit(1);
+  }
+}
+
+// --- 5. Build Logic ---
+function build(settings) {
+  console.log(`[SwatchKit] Starting build...`);
+  console.log(`  Patterns: ${settings.patternsDir}`);
+  console.log(`  Output:   ${settings.outDir}`);
+
+  // 1. Check if patterns directory exists
+  if (!fs.existsSync(settings.patternsDir)) {
+    console.error(`Error: Patterns directory not found at ${settings.patternsDir}`);
+    console.error('Run "swatchkit init" to get started.');
+    process.exit(1);
+  }
+
+  // 2. Ensure dist directories exist
+  [settings.outDir, settings.distCssDir, settings.distJsDir].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
 
-  // 2. Copy CSS files
-  console.log('Copying CSS...');
-  if (fs.existsSync(config.cssDir)) {
-      const cssFiles = fs.readdirSync(config.cssDir).filter(file => file.endsWith('.css'));
+  // 3. Copy CSS files
+  if (fs.existsSync(settings.cssDir)) {
+      console.log('Copying CSS...');
+      const cssFiles = fs.readdirSync(settings.cssDir).filter(file => file.endsWith('.css'));
       cssFiles.forEach(file => {
-          fs.copyFileSync(path.join(config.cssDir, file), path.join(config.distCssDir, file));
+          fs.copyFileSync(path.join(settings.cssDir, file), path.join(settings.distCssDir, file));
       });
   }
 
-  // 3. Read patterns & JS
+  // 4. Read patterns & JS
   console.log('Processing patterns...');
   const patterns = [];
   const scripts = [];
 
-  if (fs.existsSync(config.patternsDir)) {
-    const items = fs.readdirSync(config.patternsDir);
+  const items = fs.readdirSync(settings.patternsDir);
 
-    items.forEach(item => {
-      const itemPath = path.join(config.patternsDir, item);
+  items.forEach(item => {
+      // Skip _layout.html or hidden files
+      if (item.startsWith('_') || item.startsWith('.')) return;
+
+      const itemPath = path.join(settings.patternsDir, item);
       const stat = fs.statSync(itemPath);
       
       let name, content, id;
 
-      // Handle Directory Pattern (Folder with index.html + optional JS files)
+      // Handle Directory Pattern
       if (stat.isDirectory()) {
         const indexFile = path.join(itemPath, 'index.html');
         
@@ -53,7 +194,7 @@ function build() {
           id = item;
           content = fs.readFileSync(indexFile, 'utf-8');
 
-          // Find all .js files in this directory
+          // Find all .js files
           const jsFiles = fs.readdirSync(itemPath).filter(file => file.endsWith('.js'));
           
           jsFiles.forEach(jsFile => {
@@ -67,7 +208,7 @@ ${scriptContent}
           });
         }
       } 
-      // Handle Single File Pattern (.html)
+      // Handle Single File Pattern
       else if (item.endsWith('.html')) {
         name = path.basename(item, '.html');
         id = name;
@@ -78,9 +219,8 @@ ${scriptContent}
         patterns.push({ name, id, content });
       }
     });
-  }
 
-  // 4. Generate HTML fragments
+  // 5. Generate HTML fragments
   const sidebarLinks = patterns.map(p => 
     `<a href="#${p.id}">${p.name}</a>`
   ).join('\n');
@@ -102,26 +242,49 @@ ${scriptContent}
     `;
   }).join('\n');
 
-  // 5. Write JS Bundle
+  // 6. Write JS Bundle
   if (scripts.length > 0) {
-    fs.writeFileSync(config.outputJsFile, scripts.join('\n'));
-    console.log(`Bundled ${scripts.length} scripts to ${config.outputJsFile}`);
+    fs.writeFileSync(settings.outputJsFile, scripts.join('\n'));
+    console.log(`Bundled ${scripts.length} scripts to ${settings.outputJsFile}`);
   } else {
-    // Write empty file if no scripts so browser doesn't 404
-    fs.writeFileSync(config.outputJsFile, '// No pattern scripts found');
+    fs.writeFileSync(settings.outputJsFile, '// No pattern scripts found');
   }
 
-  // 6. Read layout and replace placeholders
-  let layout = fs.readFileSync(config.layoutFile, 'utf-8');
+  // 7. Load Layout
+  let layoutContent;
+  if (fs.existsSync(settings.projectLayout)) {
+    console.log(`Using custom layout: ${settings.projectLayout}`);
+    layoutContent = fs.readFileSync(settings.projectLayout, 'utf-8');
+  } else {
+    // console.log(`Using internal layout`);
+    layoutContent = fs.readFileSync(settings.internalLayout, 'utf-8');
+  }
   
-  const finalHtml = layout
+  const finalHtml = layoutContent
     .replace('<!-- SIDEBAR_LINKS -->', sidebarLinks)
     .replace('<!-- PATTERNS -->', patternBlocks);
 
-  // 7. Write output
-  fs.writeFileSync(config.outputFile, finalHtml);
+  // 8. Write output
+  fs.writeFileSync(settings.outputFile, finalHtml);
   
-  console.log(`Build complete! Generated ${config.outputFile}`);
+  console.log(`Build complete! Generated ${settings.outputFile}`);
 }
 
-build();
+// --- Main Execution ---
+try {
+  const cliOptions = parseArgs(process.argv);
+  const fileConfig = loadConfig(cliOptions.config);
+  const settings = resolveSettings(cliOptions, fileConfig);
+
+  if (cliOptions.command === 'init') {
+    runInit(settings, cliOptions);
+  } else {
+    build(settings);
+    if (cliOptions.watch) {
+      console.log('[SwatchKit] Watch mode is not yet fully implemented.');
+    }
+  }
+} catch (error) {
+  console.error('[SwatchKit] Error:', error.message);
+  process.exit(1);
+}

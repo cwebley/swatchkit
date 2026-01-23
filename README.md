@@ -1,33 +1,93 @@
 # SwatchKit
 
-**SwatchKit** is a lightweight, zero-configuration tool for creating HTML pattern libraries. It follows the "Magic Folder" principle: you drop files in, and a documentation site comes out.
+**SwatchKit** is a lightweight tool for generating HTML pattern libraries. It acts as a **Pattern Discovery Engine**: it scans your folders for HTML components and stitches them into a documentation site using a layout you control.
 
-## How it works
+It follows the "Magic Folder" principle: drop files in, and a library comes out.
 
-1.  **Drop Patterns:** Add `.html` files (or folders) to `src/patterns/`.
-2.  **Add Styles:** Add standard CSS to `src/css/styles.css`.
-3.  **Build:** Run `node build.js`.
+## Quick Start
 
-## Features
-
-### 1. The Magic Folder
-*   **Single File:** Drop `button.html` into `src/patterns/`. It automatically appears in the library.
-*   **Component Folder:** Drop a folder like `src/patterns/carousel/` containing `index.html`. It works exactly the same way.
-
-### 2. Automatic JS Bundling
-If your component needs client-side JavaScript, just add a `.js` file to its folder.
-*   Example: `src/patterns/carousel/script.js`
-*   **SwatchKit** will automatically find it, wrap it in an IIFE (to protect scope), and bundle it into the final site. You can have multiple JS files per pattern.
-
-### 3. Zero Config
-No config files. No build pipelines. No complex templating engines. Just HTML, CSS, and JS.
-
-## Usage
+Try it instantly in any project:
 
 ```bash
-# Build the library
-node build.js
+# 1. Initialize the layout
+npx swatchkit init
 
-# View the library
-open dist/index.html
+# 2. Build the library
+npx swatchkit
+```
+
+This will create a `swatches/` folder and build your site to `public/swatchkit/`.
+
+---
+
+## Project Setup (Recommended)
+
+For real projects, install SwatchKit as a development dependency to lock the version.
+
+```bash
+npm install -D swatchkit
+```
+
+Then add it to your `package.json` scripts:
+
+```json
+"scripts": {
+  "patterns": "swatchkit"
+}
+```
+
+## How It Works
+
+### 1. The Magic Folder
+By default, SwatchKit looks for a `swatches/` folder in your project root.
+*   **Single File:** Drop `card.html` into `swatches/`. It appears in the library.
+*   **Component Folder:** Drop a folder like `swatches/carousel/` containing `index.html`. It works the same way.
+
+### 2. Custom Layouts
+When you run `swatchkit init`, we create `swatches/_layout.html`.
+**You own this file.**
+*   Add your own `<link rel="stylesheet" href="/css/app.css">`.
+*   Add custom fonts, scripts, or meta tags.
+*   Change the HTML structure, logo, or classes.
+
+SwatchKit simply injects the content into the `<!-- PATTERNS -->` and `<!-- SIDEBAR_LINKS -->` placeholders.
+
+### 3. JavaScript Bundling
+If your component needs client-side JS:
+1.  Create a folder: `swatches/carousel/`.
+2.  Add `index.html` (Markup).
+3.  Add `script.js` (Logic).
+
+SwatchKit automatically bundles your JS files, wraps them in a safety scope (IIFE), and injects them into the final build.
+
+## CLI Reference
+
+```bash
+swatchkit [command] [options]
+```
+
+### Commands
+*   `swatchkit` (Default): Builds the library.
+*   `swatchkit init`: Scaffolds the `_layout.html` file.
+
+### Flags
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `--watch` | `-w` | Watch mode (coming soon). |
+| `--config` | `-c` | Path to config file. |
+| `--input` | `-i` | Pattern directory (Default: `swatches/`). |
+| `--outDir` | `-o` | Output directory (Default: `public/swatchkit`). |
+| `--force` | `-f` | Overwrite layout file during init. |
+
+## Configuration
+Optional. Create `swatchkit.config.js` in your root for persistent settings.
+
+```javascript
+module.exports = {
+  // Override default pattern directory
+  input: './src/patterns',
+
+  // Override default output directory
+  outDir: './dist/docs'
+};
 ```
