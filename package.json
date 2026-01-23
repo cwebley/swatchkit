@@ -1,0 +1,27 @@
+{
+  "name": "swatchkit",
+  "version": "0.0.2",
+  "description": "A lightweight tool for creating HTML pattern libraries.",
+  "main": "build.js",
+  "bin": {
+    "swatchkit": "./build.js"
+  },
+  "files": [
+    "build.js",
+    "src/layout.html"
+  ],
+  "scripts": {
+    "start": "node build.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cwebley/swatchkit.git"
+  },
+  "author": "cwebley",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cwebley/swatchkit/issues"
+  },
+  "homepage": "https://github.com/cwebley/swatchkit#readme"
+}
