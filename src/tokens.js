@@ -12,8 +12,7 @@ function slugify(text) {
     .replace(/\-\-+/g, '-');  // Replace multiple - with single -
 }
 
-function processTokens(srcDir, cssDir) {
-  const tokensDir = path.join(srcDir, 'src/tokens');
+function processTokens(tokensDir, cssDir) {
   const outputFile = path.join(cssDir, 'tokens.css');
   let cssContent = ':root {\n';
   let hasTokens = false;

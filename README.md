@@ -16,10 +16,23 @@ npx swatchkit init
 npx swatchkit
 ```
 
-This will:
-1.  Create a `swatches/` folder.
-2.  Scaffold a complete **Design System** in `src/tokens/` (Colors, Fluid Type, Spacing).
-3.  Build your site to `public/swatchkit/`.
+This will create:
+
+```
+my-project/
+├── css/
+│   ├── tokens.css          # Generated design tokens (CSS custom properties)
+│   └── styles.css          # Starter stylesheet (imports tokens.css)
+├── swatches/
+│   ├── _layout.html        # Layout template (you own this)
+│   └── tokens/             # Token definitions + documentation patterns
+│       ├── colors.json
+│       ├── colors.html
+│       └── ...
+└── public/
+    └── swatchkit/          # Built pattern library
+        └── index.html
+```
 
 ---
 
@@ -47,7 +60,7 @@ By default, SwatchKit looks for a `swatches/` folder in your project root.
 *   **Component Folder:** Drop a folder like `swatches/carousel/` containing `index.html`. It works the same way.
 
 ### 2. Design Token Engine
-SwatchKit scaffolds a powerful, CUBE CSS-friendly design system for you. Edit the JSON files in `src/tokens/`, and SwatchKit auto-generates `src/css/tokens.css`.
+SwatchKit scaffolds a design system for you. Edit the JSON files in `swatches/tokens/`, and SwatchKit auto-generates `css/tokens.css`.
 
 **Supported Tokens:**
 *   **Colors** (`colors.json`): Generates palettes.
@@ -56,18 +69,35 @@ SwatchKit scaffolds a powerful, CUBE CSS-friendly design system for you. Edit th
 *   **Modular Leading** (`text-leading.json`): Generates line-heights using `pow()` modular scales.
 *   **Fonts & Weights**: Manages font families and weights.
 
-Docs for these are automatically created in `swatches/tokens/*.html`.
+Documentation patterns for these are automatically created alongside the JSON files.
 
-### 3. Custom Layouts
+### 3. CSS Workflow
+
+SwatchKit generates `css/tokens.css` with your design tokens as CSS custom properties. The starter `css/styles.css` imports this file:
+
+```css
+@import 'tokens.css';
+
+body {
+  font-family: var(--font-base);
+  color: var(--color-dark);
+}
+
+/* Add your app styles here */
+```
+
+The pattern library uses **your stylesheet**, so components render exactly as they will in your app.
+
+### 4. Custom Layouts
 When you run `swatchkit init`, we create `swatches/_layout.html`.
 **You own this file.**
-*   Add your own `<link rel="stylesheet" href="/css/app.css">`.
+*   Link to your own stylesheets.
 *   Add custom fonts, scripts, or meta tags.
 *   Change the HTML structure, logo, or classes.
 
-SwatchKit simply injects the content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`, and `<!-- HEAD_EXTRAS -->` placeholders.
+SwatchKit injects content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`, and `<!-- HEAD_EXTRAS -->` placeholders.
 
-### 4. JavaScript Bundling
+### 5. JavaScript Bundling
 If your component needs client-side JS:
 1.  Create a folder: `swatches/carousel/`.
 2.  Add `index.html` (Markup).
@@ -100,15 +130,19 @@ Optional. Create `swatchkit.config.js` in your root for persistent settings.
 ```javascript
 module.exports = {
   // Override default pattern directory
-  input: './src/patterns',
+  input: './patterns',
 
   // Override default output directory
-  outDir: './dist/docs',
+  outDir: './dist/patterns',
   
-  // Override Token Defaults
+  // Override CSS directory
+  css: './assets/css',
+  
+  // Override token settings
   tokens: {
+    input: './design-tokens',    // Where token JSON files live
     leading: {
-      ratio: 1.25, // Change modular scale ratio
+      ratio: 1.25,               // Modular scale ratio
       base: 1
     }
   }
