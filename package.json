@@ -1,6 +1,6 @@
 {
   "name": "swatchkit",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "A lightweight tool for creating HTML pattern libraries.",
   "main": "build.js",
   "bin": {
