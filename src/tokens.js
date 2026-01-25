@@ -90,13 +90,18 @@ function processTokens(tokensDir, cssDir) {
       if (data.base && data.ratio && data.items) {
         hasTokens = true;
         cssContent += `  /* ${data.title || 'Text Leading'} */\n`;
-        cssContent += `  --leading-base: ${data.base};\n`;
-        cssContent += `  --leading-ratio: ${data.ratio};\n`;
+        cssContent += `  --leading-scale-base: ${data.base};\n`;
+        cssContent += `  --leading-scale-ratio: ${data.ratio};\n`;
 
         data.items.forEach(item => {
-          if (item.name && item.value !== undefined) {
-            const slug = slugify(item.name);
-            cssContent += `  --leading-${slug}: calc(var(--leading-base) * pow(var(--leading-ratio), ${item.value}));\n`;
+          const slug = slugify(item.name);
+          
+          if (item.value !== undefined) {
+             // Manual value (e.g. 1.5)
+             cssContent += `  --leading-${slug}: ${item.value};\n`;
+          } else if (item.step !== undefined) {
+             // Modular scale step (e.g. 1)
+             cssContent += `  --leading-${slug}: calc(var(--leading-scale-base) * pow(var(--leading-scale-ratio), ${item.step}));\n`;
           }
         });
         cssContent += '\n';
@@ -122,9 +127,29 @@ function processTokens(tokensDir, cssDir) {
                              tokensContext.viewports.min && 
                              tokensContext.viewports.max;
         
-        // Filter items that are fluid candidates (have min and max)
-        const fluidItems = data.items.filter(item => item.min !== undefined && item.max !== undefined);
-        const staticItems = data.items.filter(item => item.min === undefined || item.max === undefined);
+        const fileRatio = data.fluidRatio || 1.125;
+        const fluidItems = [];
+        const staticItems = [];
+
+        data.items.forEach(item => {
+          // If "value" is present, it's static (user explicit override)
+          if (item.value !== undefined) {
+            staticItems.push(item);
+            return;
+          }
+
+          // If min or max is present, it's fluid (calculate missing side)
+          if (item.min !== undefined || item.max !== undefined) {
+            const ratio = item.fluidRatio || fileRatio;
+            let min = item.min;
+            let max = item.max;
+
+            if (min === undefined) min = parseFloat((max / ratio).toFixed(2));
+            if (max === undefined) max = parseFloat((min * ratio).toFixed(2));
+
+            fluidItems.push({ ...item, min, max });
+          }
+        });
 
         // Process Fluid Items
         if (hasFluidData && fluidItems.length > 0) {
@@ -169,9 +194,29 @@ function processTokens(tokensDir, cssDir) {
                              tokensContext.viewports.min && 
                              tokensContext.viewports.max;
         
-        // Filter items that are fluid candidates (have min and max)
-        const fluidItems = data.items.filter(item => item.min !== undefined && item.max !== undefined);
-        const staticItems = data.items.filter(item => item.min === undefined || item.max === undefined);
+        const fileRatio = data.fluidRatio || 1.125;
+        const fluidItems = [];
+        const staticItems = [];
+
+        data.items.forEach(item => {
+          // If "value" is present, it's static (user explicit override)
+          if (item.value !== undefined) {
+            staticItems.push(item);
+            return;
+          }
+
+          // If min or max is present, it's fluid (calculate missing side)
+          if (item.min !== undefined || item.max !== undefined) {
+            const ratio = item.fluidRatio || fileRatio;
+            let min = item.min;
+            let max = item.max;
+
+            if (min === undefined) min = parseFloat((max / ratio).toFixed(2));
+            if (max === undefined) max = parseFloat((min * ratio).toFixed(2));
+
+            fluidItems.push({ ...item, min, max });
+          }
+        });
 
         // Process Fluid Items
         if (hasFluidData && fluidItems.length > 0) {

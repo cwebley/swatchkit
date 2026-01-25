@@ -71,7 +71,57 @@ SwatchKit scaffolds a design system for you. Edit the JSON files in `swatches/to
 
 Documentation patterns for these are automatically created alongside the JSON files.
 
-### 3. CSS Workflow
+### 3. Intelligent Fluid Logic (New!)
+
+SwatchKit can auto-calculate fluid typography and spacing scales.
+
+**Static vs Fluid:**
+*   **Static:** Provide a `value` (e.g. `"16px"`).
+*   **Fluid:** Provide `min` and `max` (e.g. `16` and `18`).
+*   **Auto-Fluid:** Provide just ONE side (`min` or `max`), and SwatchKit calculates the other using a default ratio (1.125).
+
+**Example (`swatches/tokens/text-sizes.json`):**
+```json
+{
+  "title": "Text Sizes",
+  "fluidRatio": 1.25,
+  "items": [
+    { "name": "base", "value": "1rem" },        // Static: 1rem always
+    { "name": "md", "min": 16, "max": 20 },     // Fluid: 16px -> 20px
+    { "name": "lg", "max": 24 },                // Auto: 19.2px -> 24px (24 / 1.25)
+    { "name": "xl", "min": 32 }                 // Auto: 32px -> 40px (32 * 1.25)
+  ]
+}
+```
+
+**Generated CSS:**
+```css
+:root {
+  --s-base: 1rem;
+  --s-md: clamp(1rem, ... , 1.25rem);
+  --s-lg: clamp(1.2rem, ... , 1.5rem);
+  --s-xl: clamp(2rem, ... , 2.5rem);
+}
+```
+
+### 4. Hybrid Text Leading
+
+You can mix modular scales with manual overrides.
+
+**Example (`swatches/tokens/text-leading.json`):**
+```json
+{
+  "base": 1,
+  "ratio": 1.2,
+  "items": [
+    { "name": "tight", "step": -1 },   // Modular: 1 * (1.2 ^ -1)
+    { "name": "flat", "value": 1 },    // Manual: 1
+    { "name": "loose", "step": 1 }     // Modular: 1 * (1.2 ^ 1)
+  ]
+}
+```
+
+### 5. CSS Workflow
 
 SwatchKit generates `css/tokens.css` with your design tokens as CSS custom properties. The starter `css/styles.css` imports this file:
 
@@ -88,7 +138,7 @@ body {
 
 The pattern library uses **your stylesheet**, so components render exactly as they will in your app.
 
-### 4. Custom Layouts
+### 6. Custom Layouts
 When you run `swatchkit init`, we create `swatches/_layout.html`.
 **You own this file.**
 *   Link to your own stylesheets.
@@ -97,7 +147,7 @@ When you run `swatchkit init`, we create `swatches/_layout.html`.
 
 SwatchKit injects content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`, and `<!-- HEAD_EXTRAS -->` placeholders.
 
-### 5. JavaScript Bundling
+### 7. JavaScript Bundling
 If your component needs client-side JS:
 1.  Create a folder: `swatches/carousel/`.
 2.  Add `index.html` (Markup).
@@ -137,6 +187,9 @@ module.exports = {
   
   // Override CSS directory
   css: './assets/css',
+  
+  // Exclude files (supports glob patterns)
+  exclude: ['*.test.js', 'temp*'],
   
   // Override token settings
   tokens: {
