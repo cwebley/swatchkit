@@ -77,7 +77,7 @@ function resolveSettings(cliOptions, fileConfig) {
     if (fileConfig.input) return path.resolve(cwd, fileConfig.input);
 
     // 2. Search candidates
-    const candidates = ["swatches", "src/swatches", "src/patterns"];
+    const candidates = ["swatches", "src/swatches"];
     for (const cand of candidates) {
       const absPath = path.join(cwd, cand);
       if (fs.existsSync(absPath)) return absPath;
@@ -97,13 +97,13 @@ function resolveSettings(cliOptions, fileConfig) {
       ? path.resolve(cwd, fileConfig.outDir)
       : path.join(cwd, "public/swatchkit");
 
-  // CSS Dir (Legacy support: src/css)
   const cssDir = path.join(cwd, "src/css");
 
   return {
     patternsDir,
     outDir,
     cssDir,
+    fileConfig, // Expose config to init
     // Internal layout template (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
     // Project specific layout override
@@ -129,6 +129,13 @@ function runInit(settings, options) {
     fs.mkdirSync(settings.patternsDir, { recursive: true });
   }
 
+  // Create patterns/tokens directory
+  const patternsTokensDir = path.join(settings.patternsDir, "tokens");
+  if (!fs.existsSync(patternsTokensDir)) {
+    console.log(`Creating patterns/tokens directory: ${patternsTokensDir}`);
+    fs.mkdirSync(patternsTokensDir, { recursive: true });
+  }
+
   // Create src/tokens directory and sample colors.json
   const tokensDir = path.join(process.cwd(), "src/tokens");
   if (!fs.existsSync(tokensDir)) {
@@ -136,92 +143,75 @@ function runInit(settings, options) {
     fs.mkdirSync(tokensDir, { recursive: true });
   }
 
-  const colorsFile = path.join(tokensDir, "colors.json");
-  if (!fs.existsSync(colorsFile)) {
-    const sampleColors = {
-      title: "Colors",
-      description:
-        "Hex color codes that can be shared, cross-platform. They can be converted at point of usage, such as HSL for web or CMYK for print.",
-      items: [
-        { name: "Dark", value: "#171406" },
-        { name: "Dark Glare", value: "#2d2816" },
-        { name: "Mid", value: "#ABA9A2" },
-        { name: "Light", value: "#ffffff" },
-        { name: "Primary", value: "#fcad26" },
-      ],
-    };
-    fs.writeFileSync(colorsFile, JSON.stringify(sampleColors, null, 2));
-    console.log(`Created sample tokens file at ${colorsFile}`);
+  const copyDefault = (srcFilename, destFilename) => {
+    const destPath = path.join(tokensDir, destFilename);
+    if (!fs.existsSync(destPath)) {
+      const srcPath = path.join(__dirname, 'src/blueprints', srcFilename);
+      const content = fs.readFileSync(srcPath, 'utf-8');
+      fs.writeFileSync(destPath, content);
+      console.log(`Created sample tokens file at ${destPath}`);
+    }
+  };
+
+  // 1. Create Colors Token
+  copyDefault('colors.json', 'colors.json');
+
+  // 2. Create Text Weights Token
+  copyDefault('text-weights.json', 'text-weights.json');
+
+  // 3. Create Text Leading Token
+  const leadingFile = path.join(tokensDir, "text-leading.json");
+  if (!fs.existsSync(leadingFile)) {
+    const srcPath = path.join(__dirname, 'src/blueprints/text-leading.json');
+    let sampleLeading = JSON.parse(fs.readFileSync(srcPath, 'utf-8'));
+
+    // Get settings from config or defaults
+    const leadingConfig = settings.fileConfig?.tokens?.leading || {};
+    if (leadingConfig.base) sampleLeading.base = leadingConfig.base;
+    if (leadingConfig.ratio) sampleLeading.ratio = leadingConfig.ratio;
+    if (leadingConfig.items) sampleLeading.items = leadingConfig.items;
+
+    fs.writeFileSync(leadingFile, JSON.stringify(sampleLeading, null, 2));
+    console.log(`Created sample tokens file at ${leadingFile}`);
   }
 
-  // Create sample colors.html pattern
-  const colorsPatternFile = path.join(settings.patternsDir, "colors.html");
-  if (!fs.existsSync(colorsPatternFile)) {
-    const colorsHtml = `
-<style>
-  .swatch-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-  }
-  .swatch {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .swatch-color {
-    height: 100px;
-    width: 100%;
-  }
-  .swatch-info {
-    padding: 0.5rem;
-    font-family: monospace;
-    font-size: 0.9rem;
-    background: #f9f9f9;
-  }
-</style>
+  // 4. Create Viewports Token
+  copyDefault('viewports.json', 'viewports.json');
 
-<div class="swatch-grid">
-  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(--color-dark);"></div>
-    <div class="swatch-info">
-      <strong>Dark</strong><br>
-      var(--color-dark)
-    </div>
-  </div>
-  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(--color-dark-glare);"></div>
-    <div class="swatch-info">
-      <strong>Dark Glare</strong><br>
-      var(--color-dark-glare)
-    </div>
-  </div>
-  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(--color-mid);"></div>
-    <div class="swatch-info">
-      <strong>Mid</strong><br>
-      var(--color-mid)
-    </div>
-  </div>
-  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(--color-light);"></div>
-    <div class="swatch-info">
-      <strong>Light</strong><br>
-      var(--color-light)
-    </div>
-  </div>
-  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(--color-primary);"></div>
-    <div class="swatch-info">
-      <strong>Primary</strong><br>
-      var(--color-primary)
-    </div>
-  </div>
-</div>
-`;
-    fs.writeFileSync(colorsPatternFile, colorsHtml.trim());
-    console.log(`Created sample pattern at ${colorsPatternFile}`);
+  // 5. Create Text Sizes Token (Fluid)
+  copyDefault('text-sizes.json', 'text-sizes.json');
+
+  // 6. Create Spacing Token
+  copyDefault('spacing.json', 'spacing.json');
+
+  // 7. Create Fonts Token
+  copyDefault('fonts.json', 'fonts.json');
+
+  const copyTemplate = (srcFilename, destFilename) => {
+    const destPath = path.join(patternsTokensDir, destFilename);
+    if (!fs.existsSync(destPath)) {
+      const srcPath = path.join(__dirname, 'src/templates', srcFilename);
+      const content = fs.readFileSync(srcPath, 'utf-8');
+      fs.writeFileSync(destPath, content.trim());
+      console.log(`Created sample pattern at ${destPath}`);
+    }
+  };
+
+  // Create sample patterns
+  copyTemplate('colors.html', 'colors.html');
+  copyTemplate('text-weights.html', 'text-weights.html');
+  copyTemplate('text-leading.html', 'text-leading.html');
+  copyTemplate('typography.html', 'typography.html');
+  copyTemplate('spacing.html', 'spacing.html');
+  copyTemplate('fonts.html', 'fonts.html');
+
+  // Create shared script for tokens
+  const tokensScriptFile = path.join(patternsTokensDir, "script.js");
+  if (!fs.existsSync(tokensScriptFile)) {
+    const srcPath = path.join(__dirname, 'src/templates/script.js');
+    const content = fs.readFileSync(srcPath, 'utf-8');
+    fs.writeFileSync(tokensScriptFile, content.trim());
+    console.log(`Created tokens script at ${tokensScriptFile}`);
   }
 
   // Generate initial CSS
@@ -248,6 +238,77 @@ function runInit(settings, options) {
 }
 
 // --- 5. Build Logic ---
+function scanDirectory(dir, scriptsCollector, exclude = []) {
+  const patterns = [];
+  if (!fs.existsSync(dir)) return patterns;
+
+  const items = fs.readdirSync(dir);
+
+  items.forEach((item) => {
+    // Skip excluded items, _layout.html, or hidden files
+    if (exclude.includes(item)) return;
+    if (item.startsWith("_") || item.startsWith(".")) return;
+
+    const itemPath = path.join(dir, item);
+    const stat = fs.statSync(itemPath);
+
+    let name, content, id;
+
+    // Handle Directory Pattern
+    if (stat.isDirectory()) {
+      const indexFile = path.join(itemPath, "index.html");
+
+      if (fs.existsSync(indexFile)) {
+        name = item;
+        id = item;
+        content = fs.readFileSync(indexFile, "utf-8");
+
+        // Find all .js files
+        const jsFiles = fs
+          .readdirSync(itemPath)
+          .filter((file) => file.endsWith(".js"));
+
+        jsFiles.forEach((jsFile) => {
+          const scriptContent = fs.readFileSync(
+            path.join(itemPath, jsFile),
+            "utf-8",
+          );
+          scriptsCollector.push(`
+/* --- Pattern: ${name} / File: ${jsFile} --- */
+(function() {
+${scriptContent}
+})();
+`);
+        });
+      }
+    }
+    // Handle Single File Pattern
+    else if (item.endsWith(".html")) {
+      name = path.basename(item, ".html");
+      id = name;
+      content = fs.readFileSync(itemPath, "utf-8");
+    }
+    // Handle Loose JS Files (e.g. script.js in tokens/)
+    else if (item.endsWith(".js")) {
+      const scriptContent = fs.readFileSync(itemPath, "utf-8");
+      scriptsCollector.push(`
+/* --- File: ${item} --- */
+(function() {
+${scriptContent}
+})();
+`);
+      // Don't add to patterns list, just scripts
+      return;
+    }
+
+    if (name && content) {
+      patterns.push({ name, id, content });
+    }
+  });
+
+  return patterns;
+}
+
 function build(settings) {
   console.log(`[SwatchKit] Starting build...`);
   console.log(`  Patterns: ${settings.patternsDir}`);
@@ -286,66 +347,39 @@ function build(settings) {
 
   // 4. Read patterns & JS
   console.log("Processing patterns...");
-  const patterns = [];
   const scripts = [];
 
-  const items = fs.readdirSync(settings.patternsDir);
+  // Pass 1: Tokens (in [patternsDir]/tokens/)
+  const tokensDir = path.join(settings.patternsDir, "tokens");
+  const tokenPages = scanDirectory(tokensDir, scripts);
 
-  items.forEach((item) => {
-    // Skip _layout.html or hidden files
-    if (item.startsWith("_") || item.startsWith(".")) return;
+  // Pass 2: Patterns (in [patternsDir], excluding 'tokens')
+  const patternPages = scanDirectory(settings.patternsDir, scripts, ["tokens"]);
 
-    const itemPath = path.join(settings.patternsDir, item);
-    const stat = fs.statSync(itemPath);
-
-    let name, content, id;
-
-    // Handle Directory Pattern
-    if (stat.isDirectory()) {
-      const indexFile = path.join(itemPath, "index.html");
-
-      if (fs.existsSync(indexFile)) {
-        name = item;
-        id = item;
-        content = fs.readFileSync(indexFile, "utf-8");
-
-        // Find all .js files
-        const jsFiles = fs
-          .readdirSync(itemPath)
-          .filter((file) => file.endsWith(".js"));
-
-        jsFiles.forEach((jsFile) => {
-          const scriptContent = fs.readFileSync(
-            path.join(itemPath, jsFile),
-            "utf-8",
-          );
-          scripts.push(`
-/* --- Pattern: ${name} / File: ${jsFile} --- */
-(function() {
-${scriptContent}
-})();
-`);
-        });
-      }
-    }
-    // Handle Single File Pattern
-    else if (item.endsWith(".html")) {
-      name = path.basename(item, ".html");
-      id = name;
-      content = fs.readFileSync(itemPath, "utf-8");
-    }
-
-    if (name && content) {
-      patterns.push({ name, id, content });
-    }
-  });
+  // Combine for content generation (Tokens first, then Patterns)
+  const allPatterns = [...tokenPages, ...patternPages];
 
   // 5. Generate HTML fragments
-  const sidebarLinks = patterns
-    .map((p) => `<a href="#${p.id}">${p.name}</a>`)
-    .join("\n");
 
-  const patternBlocks = patterns
+  // Sidebar generation with grouping
+  let sidebarLinks = "";
+
+  if (tokenPages.length > 0) {
+    sidebarLinks += `<h3>Design Tokens</h3>\n`;
+    sidebarLinks += tokenPages
+      .map((p) => `<a href="#${p.id}">${p.name}</a>`)
+      .join("\n");
+    sidebarLinks += `\n`;
+  }
+
+  if (patternPages.length > 0) {
+    sidebarLinks += `<h3>Patterns</h3>\n`;
+    sidebarLinks += patternPages
+      .map((p) => `<a href="#${p.id}">${p.name}</a>`)
+      .join("\n");
+  }
+
+  const patternBlocks = allPatterns
     .map((p) => {
       const escapedContent = p.content
         .replace(/&/g, "&amp;")
@@ -419,4 +453,3 @@ try {
   console.error("[SwatchKit] Error:", error.message);
   process.exit(1);
 }
-

@@ -1,0 +1,61 @@
+<style>
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .swatch {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .swatch-color {
+    height: 100px;
+    width: 100%;
+  }
+  .swatch-info {
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.9rem;
+    background: #f9f9f9;
+  }
+</style>
+
+<div class="swatch-grid">
+  <div class="swatch">
+    <div class="swatch-color" style="background-color: var(--color-dark);"></div>
+    <div class="swatch-info">
+      <strong>Dark</strong><br>
+      var(--color-dark)
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background-color: var(--color-dark-glare);"></div>
+    <div class="swatch-info">
+      <strong>Dark Glare</strong><br>
+      var(--color-dark-glare)
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background-color: var(--color-mid);"></div>
+    <div class="swatch-info">
+      <strong>Mid</strong><br>
+      var(--color-mid)
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background-color: var(--color-light);"></div>
+    <div class="swatch-info">
+      <strong>Light</strong><br>
+      var(--color-light)
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background-color: var(--color-primary);"></div>
+    <div class="swatch-info">
+      <strong>Primary</strong><br>
+      var(--color-primary)
+    </div>
+  </div>
+</div>
