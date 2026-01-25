@@ -89,7 +89,8 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
     { "name": "base", "value": "1rem" },        // Static: 1rem always
     { "name": "md", "min": 16, "max": 20 },     // Fluid: 16px -> 20px
     { "name": "lg", "max": 24 },                // Auto: 19.2px -> 24px (24 / 1.25)
-    { "name": "xl", "min": 32 }                 // Auto: 32px -> 40px (32 * 1.25)
+    { "name": "xl", "min": 32 },                // Auto: 32px -> 40px (32 * 1.25)
+    { "name": "jumbo", "max": 64, "fluidRatio": 1.5 } // Auto: 42.6px -> 64px (64 / 1.5)
   ]
 }
 ```
@@ -101,6 +102,7 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
   --s-md: clamp(1rem, ... , 1.25rem);
   --s-lg: clamp(1.2rem, ... , 1.5rem);
   --s-xl: clamp(2rem, ... , 2.5rem);
+  --s-jumbo: clamp(2.66rem, ... , 4rem);
 }
 ```
 
