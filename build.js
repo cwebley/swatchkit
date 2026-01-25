@@ -66,6 +66,27 @@ function loadConfig(configPath) {
   return {};
 }
 
+// --- 2.5 Glob Matching Helper ---
+function matchesPattern(filename, pattern) {
+  // Simple wildcard support
+  if (pattern.includes("*")) {
+    const parts = pattern.split("*");
+    // Handle "foo*"
+    if (pattern.endsWith("*") && !pattern.startsWith("*")) {
+        return filename.startsWith(parts[0]);
+    }
+    // Handle "*bar"
+    if (pattern.startsWith("*") && !pattern.endsWith("*")) {
+        return filename.endsWith(parts[1]);
+    }
+    // Handle "*bar*"
+    if (pattern.startsWith("*") && pattern.endsWith("*")) {
+        return filename.includes(parts[1]);
+    }
+  }
+  return filename === pattern;
+}
+
 // --- 3. Smart Defaults & Path Resolution ---
 function resolveSettings(cliOptions, fileConfig) {
   const cwd = process.cwd();
@@ -108,12 +129,16 @@ function resolveSettings(cliOptions, fileConfig) {
   const tokensDir = fileConfig.tokens?.input
     ? path.resolve(cwd, fileConfig.tokens.input)
     : path.join(patternsDir, "tokens");
+  
+  // Exclude patterns
+  const exclude = fileConfig.exclude || [];
 
   return {
     patternsDir,
     outDir,
     cssDir,
     tokensDir,
+    exclude,
     fileConfig, // Expose config to init
     // Internal layout template (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
@@ -264,8 +289,10 @@ function scanDirectory(dir, scriptsCollector, exclude = []) {
   const items = fs.readdirSync(dir);
 
   items.forEach((item) => {
-    // Skip excluded items, _layout.html, or hidden files
-    if (exclude.includes(item)) return;
+    // Skip excluded items
+    if (exclude.some(pattern => matchesPattern(item, pattern))) return;
+
+    // Skip _layout.html or hidden files
     if (item.startsWith("_") || item.startsWith(".")) return;
 
     const itemPath = path.join(dir, item);
@@ -372,8 +399,9 @@ function build(settings) {
   const tokensDir = path.join(settings.patternsDir, "tokens");
   const tokenPages = scanDirectory(tokensDir, scripts);
 
-  // Pass 2: Patterns (in [patternsDir], excluding 'tokens')
-  const patternPages = scanDirectory(settings.patternsDir, scripts, ["tokens"]);
+  // Pass 2: Patterns (in [patternsDir], excluding 'tokens' and user excludes)
+  const userExcludes = settings.exclude || [];
+  const patternPages = scanDirectory(settings.patternsDir, scripts, ["tokens", ...userExcludes]);
 
   // Combine for content generation (Tokens first, then Patterns)
   const allPatterns = [...tokenPages, ...patternPages];

@@ -19,7 +19,7 @@ body {
 
 /* === Utilities === */
 
-.flow > * + * {
+.sk-flow > * + * {
   margin-block-start: var(--space-m, 1rem);
 }
 
