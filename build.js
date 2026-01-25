@@ -97,12 +97,23 @@ function resolveSettings(cliOptions, fileConfig) {
       ? path.resolve(cwd, fileConfig.outDir)
       : path.join(cwd, "public/swatchkit");
 
-  const cssDir = path.join(cwd, "src/css");
+  // CSS directory - where tokens.css and user's styles.css live
+  // Default: css/ at project root (not src/css/)
+  const cssDir = fileConfig.css
+    ? path.resolve(cwd, fileConfig.css)
+    : path.join(cwd, "css");
+
+  // Token definitions directory
+  // Default: swatches/tokens/ (not src/tokens/)
+  const tokensDir = fileConfig.tokens?.input
+    ? path.resolve(cwd, fileConfig.tokens.input)
+    : path.join(patternsDir, "tokens");
 
   return {
     patternsDir,
     outDir,
     cssDir,
+    tokensDir,
     fileConfig, // Expose config to init
     // Internal layout template (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
@@ -116,6 +127,7 @@ function resolveSettings(cliOptions, fileConfig) {
     outputFile: path.join(outDir, "index.html"),
     outputJsFile: path.join(outDir, "js/patterns.js"),
     tokensCssFile: path.join(cssDir, "tokens.css"),
+    stylesCssFile: path.join(cssDir, "styles.css"),
   };
 }
 
@@ -129,18 +141,17 @@ function runInit(settings, options) {
     fs.mkdirSync(settings.patternsDir, { recursive: true });
   }
 
-  // Create patterns/tokens directory
-  const patternsTokensDir = path.join(settings.patternsDir, "tokens");
-  if (!fs.existsSync(patternsTokensDir)) {
-    console.log(`Creating patterns/tokens directory: ${patternsTokensDir}`);
-    fs.mkdirSync(patternsTokensDir, { recursive: true });
-  }
-
-  // Create src/tokens directory and sample colors.json
-  const tokensDir = path.join(process.cwd(), "src/tokens");
+  // Create swatches/tokens directory (for both JSON definitions and HTML patterns)
+  const tokensDir = settings.tokensDir;
   if (!fs.existsSync(tokensDir)) {
     console.log(`Creating tokens directory: ${tokensDir}`);
     fs.mkdirSync(tokensDir, { recursive: true });
+  }
+
+  // Create css/ directory at project root
+  if (!fs.existsSync(settings.cssDir)) {
+    console.log(`Creating CSS directory: ${settings.cssDir}`);
+    fs.mkdirSync(settings.cssDir, { recursive: true });
   }
 
   const copyDefault = (srcFilename, destFilename) => {
@@ -149,7 +160,7 @@ function runInit(settings, options) {
       const srcPath = path.join(__dirname, 'src/blueprints', srcFilename);
       const content = fs.readFileSync(srcPath, 'utf-8');
       fs.writeFileSync(destPath, content);
-      console.log(`Created sample tokens file at ${destPath}`);
+      console.log(`Created token file at ${destPath}`);
     }
   };
 
@@ -188,12 +199,12 @@ function runInit(settings, options) {
   copyDefault('fonts.json', 'fonts.json');
 
   const copyTemplate = (srcFilename, destFilename) => {
-    const destPath = path.join(patternsTokensDir, destFilename);
+    const destPath = path.join(tokensDir, destFilename);
     if (!fs.existsSync(destPath)) {
       const srcPath = path.join(__dirname, 'src/templates', srcFilename);
       const content = fs.readFileSync(srcPath, 'utf-8');
       fs.writeFileSync(destPath, content.trim());
-      console.log(`Created sample pattern at ${destPath}`);
+      console.log(`Created pattern at ${destPath}`);
     }
   };
 
@@ -206,7 +217,7 @@ function runInit(settings, options) {
   copyTemplate('fonts.html', 'fonts.html');
 
   // Create shared script for tokens
-  const tokensScriptFile = path.join(patternsTokensDir, "script.js");
+  const tokensScriptFile = path.join(tokensDir, "script.js");
   if (!fs.existsSync(tokensScriptFile)) {
     const srcPath = path.join(__dirname, 'src/templates/script.js');
     const content = fs.readFileSync(srcPath, 'utf-8');
@@ -214,8 +225,16 @@ function runInit(settings, options) {
     console.log(`Created tokens script at ${tokensScriptFile}`);
   }
 
-  // Generate initial CSS
-  processTokens(process.cwd(), settings.cssDir);
+  // Create starter styles.css
+  if (!fs.existsSync(settings.stylesCssFile)) {
+    const srcPath = path.join(__dirname, 'src/blueprints/styles.css');
+    const content = fs.readFileSync(srcPath, 'utf-8');
+    fs.writeFileSync(settings.stylesCssFile, content);
+    console.log(`Created starter stylesheet at ${settings.stylesCssFile}`);
+  }
+
+  // Generate initial tokens.css
+  processTokens(settings.tokensDir, settings.cssDir);
 
   const targetLayout = settings.projectLayout;
 
@@ -329,7 +348,7 @@ function build(settings) {
   });
 
   // 2.5 Process Tokens
-  processTokens(process.cwd(), settings.cssDir);
+  processTokens(settings.tokensDir, settings.cssDir);
 
   // 3. Copy CSS files
   if (fs.existsSync(settings.cssDir)) {
@@ -418,11 +437,8 @@ function build(settings) {
     layoutContent = fs.readFileSync(settings.internalLayout, "utf-8");
   }
 
-  let headExtras = "";
-  // Check if the tokens file exists in the *output* directory (where we copied it to)
-  if (fs.existsSync(settings.distTokensCssFile)) {
-    headExtras = '<link rel="stylesheet" href="css/tokens.css">';
-  }
+  // HEAD_EXTRAS placeholder available for future use (e.g., custom fonts)
+  const headExtras = "";
 
   const finalHtml = layoutContent
     .replace("<!-- SIDEBAR_LINKS -->", sidebarLinks)
