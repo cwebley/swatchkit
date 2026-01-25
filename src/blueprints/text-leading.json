@@ -1,0 +1,13 @@
+{
+  "title": "Text Leading",
+  "description": "Modular scale for line-heights",
+  "base": 1,
+  "ratio": 1.2,
+  "items": [
+    { "name": "Micro", "value": -1 },
+    { "name": "Flat", "value": 0 },
+    { "name": "Fine", "value": 1 },
+    { "name": "Standard", "value": 2 },
+    { "name": "Loose", "value": 3 }
+  ]
+}
