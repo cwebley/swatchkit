@@ -23,7 +23,7 @@ my-project/
 ├── css/
 │   ├── tokens.css          # Generated design tokens (CSS custom properties)
 │   └── styles.css          # Starter stylesheet (imports tokens.css)
-├── swatches/
+├── swatchkit/
 │   ├── _layout.html        # Layout template (you own this)
 │   └── tokens/             # Token definitions + documentation patterns
 │       ├── colors.json
@@ -54,13 +54,32 @@ Then add it to your `package.json` scripts:
 
 ## Features
 
-### 1. The Magic Folder
-By default, SwatchKit looks for a `swatches/` folder in your project root.
-*   **Single File:** Drop `card.html` into `swatches/`. It appears in the library.
-*   **Component Folder:** Drop a folder like `swatches/carousel/` containing `index.html`. It works the same way.
+### 1. The Magic Folder & Project Structure
+By default, SwatchKit looks for a `swatchkit/` folder in your project root.
+
+**Organize by Folder:**
+SwatchKit automatically turns subfolders into sections in the documentation sidebar.
+
+```
+swatchkit/
+├── tokens/              # Section: "Design Tokens"
+│   └── colors.json
+├── components/          # Section: "Components"
+│   ├── button.html
+│   └── card/
+│       └── index.html
+├── compositions/        # Section: "Compositions"
+│   └── sidebar.html
+└── utilities/           # Section: "Utilities"
+    └── flow.html
+```
+
+*   **Files at root:** Go to the "Patterns" section.
+*   **Subfolders:** Create a new section (e.g. `utilities/` -> "Utilities").
+*   **Tokens:** Special folder for JSON definitions.
 
 ### 2. Design Token Engine
-SwatchKit scaffolds a design system for you. Edit the JSON files in `swatches/tokens/`, and SwatchKit auto-generates `css/tokens.css`.
+SwatchKit scaffolds a design system for you. Edit the JSON files in `swatchkit/tokens/`, and SwatchKit auto-generates `css/tokens.css`.
 
 **Supported Tokens:**
 *   **Colors** (`colors.json`): Generates palettes.
@@ -80,7 +99,7 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
 *   **Fluid:** Provide `min` and `max` (e.g. `16` and `18`).
 *   **Auto-Fluid:** Provide just ONE side (`min` or `max`), and SwatchKit calculates the other using a default ratio (1.125).
 
-**Example (`swatches/tokens/text-sizes.json`):**
+**Example (`swatchkit/tokens/text-sizes.json`):**
 ```json
 {
   "title": "Text Sizes",
@@ -110,7 +129,7 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
 
 You can mix modular scales with manual overrides.
 
-**Example (`swatches/tokens/text-leading.json`):**
+**Example (`swatchkit/tokens/text-leading.json`):**
 ```json
 {
   "base": 1,
@@ -141,7 +160,7 @@ body {
 The pattern library uses **your stylesheet**, so components render exactly as they will in your app.
 
 ### 6. Custom Layouts
-When you run `swatchkit init`, we create `swatches/_layout.html`.
+When you run `swatchkit init`, we create `swatchkit/_layout.html`.
 **You own this file.**
 *   Link to your own stylesheets.
 *   Add custom fonts, scripts, or meta tags.
@@ -151,7 +170,7 @@ SwatchKit injects content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`
 
 ### 7. JavaScript Bundling
 If your component needs client-side JS:
-1.  Create a folder: `swatches/carousel/`.
+1.  Create a folder: `swatchkit/carousel/`.
 2.  Add `index.html` (Markup).
 3.  Add `script.js` (Logic).
 
@@ -172,7 +191,7 @@ swatchkit [command] [options]
 | :--- | :--- | :--- |
 | `--watch` | `-w` | Watch files and rebuild on change. |
 | `--config` | `-c` | Path to config file. |
-| `--input` | `-i` | Pattern directory (Default: `swatches/`). |
+| `--input` | `-i` | Pattern directory (Default: `swatchkit/`). |
 | `--outDir` | `-o` | Output directory (Default: `public/swatchkit`). |
 | `--force` | `-f` | Overwrite layout file during init. |
 
