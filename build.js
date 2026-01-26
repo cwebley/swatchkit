@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
+const chokidar = require("chokidar");
 const { processTokens } = require("./src/tokens");
 
 /**
@@ -479,6 +480,43 @@ function build(settings) {
   console.log(`Build complete! Generated ${settings.outputFile}`);
 }
 
+// --- 6. Watch Logic ---
+function watch(settings) {
+  const watchPaths = [
+    settings.patternsDir,
+    settings.tokensDir,
+    settings.projectLayout,
+    settings.stylesCssFile
+  ].filter(p => fs.existsSync(p)); // Only watch files that exist
+
+  console.log("[SwatchKit] Watch mode enabled.");
+  console.log("Watching for changes in:");
+  watchPaths.forEach(p => console.log(`  - ${p}`));
+
+  let buildTimeout;
+  const rebuild = () => {
+    if (buildTimeout) clearTimeout(buildTimeout);
+    buildTimeout = setTimeout(() => {
+      try {
+        console.log("[SwatchKit] Change detected. Rebuilding...");
+        build(settings);
+      } catch (e) {
+        console.error("[SwatchKit] Build failed:", e.message);
+      }
+    }, 100); // 100ms debounce
+  };
+
+  const watcher = chokidar.watch(watchPaths, {
+    ignored: /(^|[\/\\])\../, // ignore dotfiles
+    persistent: true,
+    ignoreInitial: true
+  });
+
+  watcher.on('all', (event, path) => {
+    rebuild();
+  });
+}
+
 // --- Main Execution ---
 try {
   const cliOptions = parseArgs(process.argv);
@@ -490,7 +528,7 @@ try {
   } else {
     build(settings);
     if (cliOptions.watch) {
-      console.log("[SwatchKit] Watch mode is not yet fully implemented.");
+      watch(settings);
     }
   }
 } catch (error) {
