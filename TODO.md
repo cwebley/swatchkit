@@ -12,5 +12,6 @@
 ## Technical Improvements
 - **CSS-Native Clamping:** Evaluate removing JS clamp generator logic and handling it entirely in CSS `clamp()`.
   - _Benefit:_ Easier updates; changing a single CSS variable cascades instantly without a rebuild/watcher.
-- Consider adding a css reset.
+- [x] Add .npmignore
+- [x] Add a CSS reset (Andy Bell's modern reset).
 - Consider handling utility class helpers. 'text-align:\ center'.
