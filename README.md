@@ -191,15 +191,6 @@ module.exports = {
   css: './assets/css',
   
   // Exclude files (supports glob patterns)
-  exclude: ['*.test.js', 'temp*'],
-  
-  // Override token settings
-  tokens: {
-    input: './design-tokens',    // Where token JSON files live
-    leading: {
-      ratio: 1.25,               // Modular scale ratio
-      base: 1
-    }
-  }
+  exclude: ['*.test.js', 'temp*']
 };
 ```

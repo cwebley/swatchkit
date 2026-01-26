@@ -197,20 +197,7 @@ function runInit(settings, options) {
   copyDefault('text-weights.json', 'text-weights.json');
 
   // 3. Create Text Leading Token
-  const leadingFile = path.join(tokensDir, "text-leading.json");
-  if (!fs.existsSync(leadingFile)) {
-    const srcPath = path.join(__dirname, 'src/blueprints/text-leading.json');
-    let sampleLeading = JSON.parse(fs.readFileSync(srcPath, 'utf-8'));
-
-    // Get settings from config or defaults
-    const leadingConfig = settings.fileConfig?.tokens?.leading || {};
-    if (leadingConfig.base) sampleLeading.base = leadingConfig.base;
-    if (leadingConfig.ratio) sampleLeading.ratio = leadingConfig.ratio;
-    if (leadingConfig.items) sampleLeading.items = leadingConfig.items;
-
-    fs.writeFileSync(leadingFile, JSON.stringify(sampleLeading, null, 2));
-    console.log(`Created sample tokens file at ${leadingFile}`);
-  }
+  copyDefault('text-leading.json', 'text-leading.json');
 
   // 4. Create Viewports Token
   copyDefault('viewports.json', 'viewports.json');
