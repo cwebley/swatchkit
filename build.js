@@ -68,7 +68,7 @@ function loadConfig(configPath) {
 }
 
 // --- 2.5 Glob Matching Helper ---
-function matchesPattern(filename, pattern) {
+function matchesGlob(filename, pattern) {
   // Simple wildcard support
   if (pattern.includes("*")) {
     const parts = pattern.split("*");
@@ -88,28 +88,25 @@ function matchesPattern(filename, pattern) {
   return filename === pattern;
 }
 
+function toTitleCase(str) {
+  return str.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 // --- 3. Smart Defaults & Path Resolution ---
 function resolveSettings(cliOptions, fileConfig) {
   const cwd = process.cwd();
 
   // Helper to find patterns dir
-  function findPatternsDir() {
+  function findSwatchkitDir() {
     // 1. Explicit input
     if (cliOptions.input) return path.resolve(cwd, cliOptions.input);
     if (fileConfig.input) return path.resolve(cwd, fileConfig.input);
 
-    // 2. Search candidates
-    const candidates = ["swatches", "src/swatches"];
-    for (const cand of candidates) {
-      const absPath = path.join(cwd, cand);
-      if (fs.existsSync(absPath)) return absPath;
-    }
-
-    // 3. Fallback default (swatches)
-    return path.join(cwd, "swatches");
+    // 2. Default
+    return path.join(cwd, "swatchkit");
   }
 
-  const patternsDir = findPatternsDir();
+  const swatchkitDir = findSwatchkitDir();
 
   // Output Dir
   // Default: public/swatchkit
@@ -129,13 +126,13 @@ function resolveSettings(cliOptions, fileConfig) {
   // Default: swatches/tokens/ (not src/tokens/)
   const tokensDir = fileConfig.tokens?.input
     ? path.resolve(cwd, fileConfig.tokens.input)
-    : path.join(patternsDir, "tokens");
+    : path.join(swatchkitDir, "tokens");
   
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
 
   return {
-    patternsDir,
+    swatchkitDir,
     outDir,
     cssDir,
     tokensDir,
@@ -144,14 +141,14 @@ function resolveSettings(cliOptions, fileConfig) {
     // Internal layout template (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
     // Project specific layout override
-    projectLayout: path.join(patternsDir, "_layout.html"),
+    projectLayout: path.join(swatchkitDir, "_layout.html"),
 
     // Derived paths
     distCssDir: path.join(outDir, "css"),
     distTokensCssFile: path.join(outDir, "css", "tokens.css"),
     distJsDir: path.join(outDir, "js"),
     outputFile: path.join(outDir, "index.html"),
-    outputJsFile: path.join(outDir, "js/patterns.js"),
+    outputJsFile: path.join(outDir, "js/swatches.js"),
     tokensCssFile: path.join(cssDir, "tokens.css"),
     stylesCssFile: path.join(cssDir, "styles.css"),
   };
@@ -161,10 +158,10 @@ function resolveSettings(cliOptions, fileConfig) {
 function runInit(settings, options) {
   console.log("[SwatchKit] Initializing...");
 
-  // Ensure patterns directory exists
-  if (!fs.existsSync(settings.patternsDir)) {
-    console.log(`Creating patterns directory: ${settings.patternsDir}`);
-    fs.mkdirSync(settings.patternsDir, { recursive: true });
+  // Ensure swatchkit directory exists
+  if (!fs.existsSync(settings.swatchkitDir)) {
+    console.log(`Creating swatchkit directory: ${settings.swatchkitDir}`);
+    fs.mkdirSync(settings.swatchkitDir, { recursive: true });
   }
 
   // Create swatches/tokens directory (for both JSON definitions and HTML patterns)
@@ -270,15 +267,15 @@ function runInit(settings, options) {
 }
 
 // --- 5. Build Logic ---
-function scanDirectory(dir, scriptsCollector, exclude = []) {
-  const patterns = [];
-  if (!fs.existsSync(dir)) return patterns;
+function scanSwatches(dir, scriptsCollector, exclude = []) {
+  const swatches = [];
+  if (!fs.existsSync(dir)) return swatches;
 
   const items = fs.readdirSync(dir);
 
   items.forEach((item) => {
     // Skip excluded items
-    if (exclude.some(pattern => matchesPattern(item, pattern))) return;
+    if (exclude.some(pattern => matchesGlob(item, pattern))) return;
 
     // Skip _layout.html or hidden files
     if (item.startsWith("_") || item.startsWith(".")) return;
@@ -288,7 +285,7 @@ function scanDirectory(dir, scriptsCollector, exclude = []) {
 
     let name, content, id;
 
-    // Handle Directory Pattern
+    // Handle Component Directory
     if (stat.isDirectory()) {
       const indexFile = path.join(itemPath, "index.html");
 
@@ -308,7 +305,7 @@ function scanDirectory(dir, scriptsCollector, exclude = []) {
             "utf-8",
           );
           scriptsCollector.push(`
-/* --- Pattern: ${name} / File: ${jsFile} --- */
+/* --- Swatch: ${name} / File: ${jsFile} --- */
 (function() {
 ${scriptContent}
 })();
@@ -316,7 +313,7 @@ ${scriptContent}
         });
       }
     }
-    // Handle Single File Pattern
+    // Handle Single File
     else if (item.endsWith(".html")) {
       name = path.basename(item, ".html");
       id = name;
@@ -331,27 +328,27 @@ ${scriptContent}
 ${scriptContent}
 })();
 `);
-      // Don't add to patterns list, just scripts
+      // Don't add to swatches list, just scripts
       return;
     }
 
     if (name && content) {
-      patterns.push({ name, id, content });
+      swatches.push({ name, id, content });
     }
   });
 
-  return patterns;
+  return swatches;
 }
 
 function build(settings) {
   console.log(`[SwatchKit] Starting build...`);
-  console.log(`  Patterns: ${settings.patternsDir}`);
+  console.log(`  Source:   ${settings.swatchkitDir}`);
   console.log(`  Output:   ${settings.outDir}`);
 
-  // 1. Check if patterns directory exists
-  if (!fs.existsSync(settings.patternsDir)) {
+  // 1. Check if source directory exists
+  if (!fs.existsSync(settings.swatchkitDir)) {
     console.error(
-      `Error: Patterns directory not found at ${settings.patternsDir}`,
+      `Error: SwatchKit directory not found at ${settings.swatchkitDir}`,
     );
     console.error('Run "swatchkit init" to get started.');
     process.exit(1);
@@ -379,43 +376,96 @@ function build(settings) {
     });
   }
 
-  // 4. Read patterns & JS
-  console.log("Processing patterns...");
+  // 4. Read swatches & JS
+  console.log("Processing swatches...");
   const scripts = [];
+  const sections = {}; // Map<SectionName, Array<Swatch>>
 
-  // Pass 1: Tokens (in [patternsDir]/tokens/)
-  const tokensDir = path.join(settings.patternsDir, "tokens");
-  const tokenPages = scanDirectory(tokensDir, scripts);
+  if (fs.existsSync(settings.swatchkitDir)) {
+    const items = fs.readdirSync(settings.swatchkitDir);
+    const exclude = settings.exclude || [];
 
-  // Pass 2: Patterns (in [patternsDir], excluding 'tokens' and user excludes)
-  const userExcludes = settings.exclude || [];
-  const patternPages = scanDirectory(settings.patternsDir, scripts, ["tokens", ...userExcludes]);
+    // Scan subdirectories (Sections)
+    items.forEach(item => {
+      if (exclude.some(p => matchesGlob(item, p))) return;
+      if (item.startsWith(".") || item.startsWith("_")) return;
 
-  // Combine for content generation (Tokens first, then Patterns)
-  const allPatterns = [...tokenPages, ...patternPages];
+      const itemPath = path.join(settings.swatchkitDir, item);
+      if (fs.lstatSync(itemPath).isDirectory()) {
+        const hasIndex = fs.existsSync(path.join(itemPath, "index.html"));
+        
+        if (!hasIndex) {
+           // It is a Section Container (e.g. "Utilities")
+           const sectionName = item === 'tokens' ? 'Design Tokens' : toTitleCase(item);
+           const swatches = scanSwatches(itemPath, scripts, exclude);
+           if (swatches.length > 0) {
+             sections[sectionName] = swatches;
+           }
+        }
+      }
+    });
+
+    // Scan root swatches (Files + Component Folders at root)
+    const rootSwatches = [];
+    items.forEach(item => {
+        if (exclude.some(p => matchesGlob(item, p))) return;
+        if (item.startsWith(".") || item.startsWith("_")) return;
+        
+        const itemPath = path.join(settings.swatchkitDir, item);
+        const stat = fs.statSync(itemPath);
+        
+        if (stat.isFile() && item.endsWith('.html')) {
+             const name = path.basename(item, ".html");
+             const content = fs.readFileSync(itemPath, "utf-8");
+             rootSwatches.push({ name, id: name, content });
+        } else if (stat.isDirectory()) {
+            const indexFile = path.join(itemPath, "index.html");
+            if (fs.existsSync(indexFile)) {
+                // Component folder swatch at root
+                const name = item;
+                const content = fs.readFileSync(indexFile, "utf-8");
+                rootSwatches.push({ name, id: name, content });
+                
+                // Collect JS
+                const jsFiles = fs.readdirSync(itemPath).filter(f => f.endsWith(".js"));
+                jsFiles.forEach(jsFile => {
+                    const scriptContent = fs.readFileSync(path.join(itemPath, jsFile), "utf-8");
+                    scripts.push(`/* ${name}/${jsFile} */ (function(){${scriptContent}})();`);
+                });
+            }
+        }
+    });
+    
+    if (rootSwatches.length > 0) {
+        sections["Patterns"] = rootSwatches;
+    }
+  }
 
   // 5. Generate HTML fragments
 
   // Sidebar generation with grouping
   let sidebarLinks = "";
+  let swatchBlocks = "";
 
-  if (tokenPages.length > 0) {
-    sidebarLinks += `<h3>Design Tokens</h3>\n`;
-    sidebarLinks += tokenPages
+  // Helper to sort sections: Tokens first, then A-Z, Patterns last
+  const sortedKeys = Object.keys(sections).sort((a, b) => {
+    if (a === 'Design Tokens') return -1;
+    if (b === 'Design Tokens') return 1;
+    if (a === 'Patterns') return 1;
+    if (b === 'Patterns') return -1;
+    return a.localeCompare(b);
+  });
+
+  sortedKeys.forEach(section => {
+    const swatches = sections[section];
+    sidebarLinks += `<h3>${section}</h3>\n`;
+    sidebarLinks += swatches
       .map((p) => `<a href="#${p.id}">${p.name}</a>`)
       .join("\n");
     sidebarLinks += `\n`;
-  }
 
-  if (patternPages.length > 0) {
-    sidebarLinks += `<h3>Patterns</h3>\n`;
-    sidebarLinks += patternPages
-      .map((p) => `<a href="#${p.id}">${p.name}</a>`)
-      .join("\n");
-  }
-
-  const patternBlocks = allPatterns
-    .map((p) => {
+    // Generate Blocks
+    swatchBlocks += swatches.map((p) => {
       const escapedContent = p.content
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -425,13 +475,13 @@ function build(settings) {
 
       return `
       <section id="${p.id}">
-        <h2>${p.name}</h2>
+        <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
         <div class="preview">${p.content}</div>
         <pre><code>${escapedContent}</code></pre>
       </section>
     `;
-    })
-    .join("\n");
+    }).join("\n");
+  });
 
   // 6. Write JS Bundle
   if (scripts.length > 0) {
@@ -440,7 +490,7 @@ function build(settings) {
       `Bundled ${scripts.length} scripts to ${settings.outputJsFile}`,
     );
   } else {
-    fs.writeFileSync(settings.outputJsFile, "// No pattern scripts found");
+    fs.writeFileSync(settings.outputJsFile, "// No swatch scripts found");
   }
 
   // 7. Load Layout
@@ -458,7 +508,7 @@ function build(settings) {
 
   const finalHtml = layoutContent
     .replace("<!-- SIDEBAR_LINKS -->", sidebarLinks)
-    .replace("<!-- PATTERNS -->", patternBlocks)
+    .replace("<!-- SWATCHES -->", swatchBlocks)
     .replace("<!-- HEAD_EXTRAS -->", headExtras);
 
   // 8. Write output
@@ -470,7 +520,7 @@ function build(settings) {
 // --- 6. Watch Logic ---
 function watch(settings) {
   const watchPaths = [
-    settings.patternsDir,
+    settings.swatchkitDir,
     settings.tokensDir,
     settings.projectLayout,
     settings.stylesCssFile
