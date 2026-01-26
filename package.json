@@ -23,5 +23,8 @@
   "bugs": {
     "url": "https://github.com/cwebley/swatchkit/issues"
   },
-  "homepage": "https://github.com/cwebley/swatchkit#readme"
+  "homepage": "https://github.com/cwebley/swatchkit#readme",
+  "dependencies": {
+    "chokidar": "^5.0.0"
+  }
 }

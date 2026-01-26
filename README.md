@@ -170,7 +170,7 @@ swatchkit [command] [options]
 ### Flags
 | Flag | Short | Description |
 | :--- | :--- | :--- |
-| `--watch` | `-w` | Watch mode (coming soon). |
+| `--watch` | `-w` | Watch files and rebuild on change. |
 | `--config` | `-c` | Path to config file. |
 | `--input` | `-i` | Pattern directory (Default: `swatches/`). |
 | `--outDir` | `-o` | Output directory (Default: `public/swatchkit`). |
