@@ -243,6 +243,21 @@ function runInit(settings, options) {
     console.log(`Created starter stylesheet at ${settings.stylesCssFile}`);
   }
 
+  // Copy Compositions
+  const compositionsSrc = path.join(__dirname, 'src/blueprints/compositions');
+  const compositionsDest = path.join(settings.cssDir, 'compositions');
+  if (fs.existsSync(compositionsSrc)) {
+      copyDir(compositionsSrc, compositionsDest);
+  }
+
+  // Copy SwatchKit UI Styles
+  const uiSrc = path.join(__dirname, 'src/blueprints/swatchkit-ui.css');
+  const uiDest = path.join(settings.cssDir, 'swatchkit-ui.css');
+  if (fs.existsSync(uiSrc) && !fs.existsSync(uiDest)) {
+    fs.copyFileSync(uiSrc, uiDest);
+    console.log(`Created UI styles at ${uiDest}`);
+  }
+
   // Generate initial tokens.css
   processTokens(settings.tokensDir, settings.cssDir);
 
@@ -267,6 +282,25 @@ function runInit(settings, options) {
 }
 
 // --- 5. Build Logic ---
+function copyDir(src, dest, force = false) {
+  if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath, force);
+    } else {
+      if (force || !fs.existsSync(destPath)) {
+        fs.copyFileSync(srcPath, destPath);
+        if (!force) console.log(`Created file at ${destPath}`);
+      }
+    }
+  }
+}
+
 function scanSwatches(dir, scriptsCollector, exclude = []) {
   const swatches = [];
   if (!fs.existsSync(dir)) return swatches;
@@ -362,18 +396,10 @@ function build(settings) {
   // 2.5 Process Tokens
   processTokens(settings.tokensDir, settings.cssDir);
 
-  // 3. Copy CSS files
+  // 3. Copy CSS files (recursively)
   if (fs.existsSync(settings.cssDir)) {
     console.log("Copying CSS...");
-    const cssFiles = fs
-      .readdirSync(settings.cssDir)
-      .filter((file) => file.endsWith(".css"));
-    cssFiles.forEach((file) => {
-      fs.copyFileSync(
-        path.join(settings.cssDir, file),
-        path.join(settings.distCssDir, file),
-      );
-    });
+    copyDir(settings.cssDir, settings.distCssDir, true);
   }
 
   // 4. Read swatches & JS
