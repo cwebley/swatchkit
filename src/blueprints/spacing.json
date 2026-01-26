@@ -10,6 +10,7 @@
     { "name": "2XL", "min": 56, "max": 64 },
     { "name": "3XL", "min": 70, "max": 80 },
     { "name": "4XL", "min": 105, "max": 120 },
+    { "name": "S - L", "min": 14, "max": 40 },
     { "name": "XS - L", "min": 7, "max": 40 },
     { "name": "M - L", "min": 21, "max": 40 },
     { "name": "2XL - 4XL", "min": 56, "max": 120 }
