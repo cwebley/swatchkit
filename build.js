@@ -243,6 +243,14 @@ function runInit(settings, options) {
     console.log(`Created starter stylesheet at ${settings.stylesCssFile}`);
   }
 
+  // Copy CSS Reset
+  const resetSrc = path.join(__dirname, 'src/blueprints/reset.css');
+  const resetDest = path.join(settings.cssDir, 'reset.css');
+  if (fs.existsSync(resetSrc) && !fs.existsSync(resetDest)) {
+    fs.copyFileSync(resetSrc, resetDest);
+    console.log(`Created CSS reset at ${resetDest}`);
+  }
+
   // Copy Compositions
   const compositionsSrc = path.join(__dirname, 'src/blueprints/compositions');
   const compositionsDest = path.join(settings.cssDir, 'compositions');
