@@ -7,7 +7,7 @@
 
 .wrapper {
   margin-inline: auto;
-  max-width: var(--wrapper-max-width, 1360px);
+  max-inline-size: var(--wrapper-max-width, 1360px);
   padding-inline-start: var(--gutter);
   padding-inline-end: var(--gutter);
   position: relative;
