@@ -1,0 +1,32 @@
+/*
+  SWITCHER
+  Lays out items horizontally until there is insufficient space, then stacks them.
+  Optimized for 2 items.
+
+  Credit: Adapted from Every Layout (The Switcher)
+  Docs:   https://every-layout.dev/layouts/switcher/
+
+  CUSTOM PROPERTIES:
+  --gutter: Space between items (default: --space-l)
+  --switcher-target-container-width: Container breakpoint width (default: 40rem)
+  --switcher-vertical-alignment: Vertical alignment (default: flex-start)
+*/
+
+.switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gutter, var(--space-l));
+  align-items: var(--switcher-vertical-alignment, flex-start);
+}
+
+.switcher > * {
+  flex-grow: 1;
+  flex-basis: calc(
+    (var(--switcher-target-container-width, 40rem) - 100%) * 999
+  );
+}
+
+/* Max 3 items, so anything greater than 3 is full width */
+.switcher > :nth-child(n + 4) {
+  flex-basis: 100%;
+}

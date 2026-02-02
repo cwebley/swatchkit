@@ -74,22 +74,22 @@ function matchesGlob(filename, pattern) {
     const parts = pattern.split("*");
     // Handle "foo*"
     if (pattern.endsWith("*") && !pattern.startsWith("*")) {
-        return filename.startsWith(parts[0]);
+      return filename.startsWith(parts[0]);
     }
     // Handle "*bar"
     if (pattern.startsWith("*") && !pattern.endsWith("*")) {
-        return filename.endsWith(parts[1]);
+      return filename.endsWith(parts[1]);
     }
     // Handle "*bar*"
     if (pattern.startsWith("*") && pattern.endsWith("*")) {
-        return filename.includes(parts[1]);
+      return filename.includes(parts[1]);
     }
   }
   return filename === pattern;
 }
 
 function toTitleCase(str) {
-  return str.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return str.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 // --- 3. Smart Defaults & Path Resolution ---
@@ -127,7 +127,7 @@ function resolveSettings(cliOptions, fileConfig) {
   const tokensDir = fileConfig.tokens?.input
     ? path.resolve(cwd, fileConfig.tokens.input)
     : path.join(swatchkitDir, "tokens");
-  
+
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
 
@@ -180,87 +180,87 @@ function runInit(settings, options) {
   const copyDefault = (srcFilename, destFilename) => {
     const destPath = path.join(tokensDir, destFilename);
     if (!fs.existsSync(destPath)) {
-      const srcPath = path.join(__dirname, 'src/blueprints', srcFilename);
-      const content = fs.readFileSync(srcPath, 'utf-8');
+      const srcPath = path.join(__dirname, "src/blueprints", srcFilename);
+      const content = fs.readFileSync(srcPath, "utf-8");
       fs.writeFileSync(destPath, content);
       console.log(`Created token file at ${destPath}`);
     }
   };
 
   // 1. Create Colors Token
-  copyDefault('colors.json', 'colors.json');
+  copyDefault("colors.json", "colors.json");
 
   // 2. Create Text Weights Token
-  copyDefault('text-weights.json', 'text-weights.json');
+  copyDefault("text-weights.json", "text-weights.json");
 
   // 3. Create Text Leading Token
-  copyDefault('text-leading.json', 'text-leading.json');
+  copyDefault("text-leading.json", "text-leading.json");
 
   // 4. Create Viewports Token
-  copyDefault('viewports.json', 'viewports.json');
+  copyDefault("viewports.json", "viewports.json");
 
   // 5. Create Text Sizes Token (Fluid)
-  copyDefault('text-sizes.json', 'text-sizes.json');
+  copyDefault("text-sizes.json", "text-sizes.json");
 
   // 6. Create Spacing Token
-  copyDefault('spacing.json', 'spacing.json');
+  copyDefault("spacing.json", "spacing.json");
 
   // 7. Create Fonts Token
-  copyDefault('fonts.json', 'fonts.json');
+  copyDefault("fonts.json", "fonts.json");
 
   const copyTemplate = (srcFilename, destFilename) => {
     const destPath = path.join(tokensDir, destFilename);
     if (!fs.existsSync(destPath)) {
-      const srcPath = path.join(__dirname, 'src/templates', srcFilename);
-      const content = fs.readFileSync(srcPath, 'utf-8');
+      const srcPath = path.join(__dirname, "src/templates", srcFilename);
+      const content = fs.readFileSync(srcPath, "utf-8");
       fs.writeFileSync(destPath, content.trim());
       console.log(`Created pattern at ${destPath}`);
     }
   };
 
   // Create sample patterns
-  copyTemplate('colors.html', 'colors.html');
-  copyTemplate('text-weights.html', 'text-weights.html');
-  copyTemplate('text-leading.html', 'text-leading.html');
-  copyTemplate('typography.html', 'typography.html');
-  copyTemplate('spacing.html', 'spacing.html');
-  copyTemplate('fonts.html', 'fonts.html');
+  copyTemplate("colors.html", "colors.html");
+  copyTemplate("text-weights.html", "text-weights.html");
+  copyTemplate("text-leading.html", "text-leading.html");
+  copyTemplate("typography.html", "typography.html");
+  copyTemplate("spacing.html", "spacing.html");
+  copyTemplate("fonts.html", "fonts.html");
 
   // Create shared script for tokens
   const tokensScriptFile = path.join(tokensDir, "script.js");
   if (!fs.existsSync(tokensScriptFile)) {
-    const srcPath = path.join(__dirname, 'src/templates/script.js');
-    const content = fs.readFileSync(srcPath, 'utf-8');
+    const srcPath = path.join(__dirname, "src/templates/script.js");
+    const content = fs.readFileSync(srcPath, "utf-8");
     fs.writeFileSync(tokensScriptFile, content.trim());
     console.log(`Created tokens script at ${tokensScriptFile}`);
   }
 
   // Create starter styles.css
   if (!fs.existsSync(settings.stylesCssFile)) {
-    const srcPath = path.join(__dirname, 'src/blueprints/styles.css');
-    const content = fs.readFileSync(srcPath, 'utf-8');
+    const srcPath = path.join(__dirname, "src/blueprints/styles.css");
+    const content = fs.readFileSync(srcPath, "utf-8");
     fs.writeFileSync(settings.stylesCssFile, content);
     console.log(`Created starter stylesheet at ${settings.stylesCssFile}`);
   }
 
   // Copy CSS Reset
-  const resetSrc = path.join(__dirname, 'src/blueprints/reset.css');
-  const resetDest = path.join(settings.cssDir, 'reset.css');
+  const resetSrc = path.join(__dirname, "src/blueprints/reset.css");
+  const resetDest = path.join(settings.cssDir, "reset.css");
   if (fs.existsSync(resetSrc) && !fs.existsSync(resetDest)) {
     fs.copyFileSync(resetSrc, resetDest);
     console.log(`Created CSS reset at ${resetDest}`);
   }
 
   // Copy Compositions
-  const compositionsSrc = path.join(__dirname, 'src/blueprints/compositions');
-  const compositionsDest = path.join(settings.cssDir, 'compositions');
+  const compositionsSrc = path.join(__dirname, "src/blueprints/compositions");
+  const compositionsDest = path.join(settings.cssDir, "compositions");
   if (fs.existsSync(compositionsSrc)) {
-      copyDir(compositionsSrc, compositionsDest);
+    copyDir(compositionsSrc, compositionsDest);
   }
 
   // Copy SwatchKit UI Styles
-  const uiSrc = path.join(__dirname, 'src/blueprints/swatchkit-ui.css');
-  const uiDest = path.join(settings.cssDir, 'swatchkit-ui.css');
+  const uiSrc = path.join(__dirname, "src/blueprints/swatchkit-ui.css");
+  const uiDest = path.join(settings.cssDir, "swatchkit-ui.css");
   if (fs.existsSync(uiSrc) && !fs.existsSync(uiDest)) {
     fs.copyFileSync(uiSrc, uiDest);
     console.log(`Created UI styles at ${uiDest}`);
@@ -317,7 +317,7 @@ function scanSwatches(dir, scriptsCollector, exclude = []) {
 
   items.forEach((item) => {
     // Skip excluded items
-    if (exclude.some(pattern => matchesGlob(item, pattern))) return;
+    if (exclude.some((pattern) => matchesGlob(item, pattern))) return;
 
     // Skip _layout.html or hidden files
     if (item.startsWith("_") || item.startsWith(".")) return;
@@ -420,58 +420,66 @@ function build(settings) {
     const exclude = settings.exclude || [];
 
     // Scan subdirectories (Sections)
-    items.forEach(item => {
-      if (exclude.some(p => matchesGlob(item, p))) return;
+    items.forEach((item) => {
+      if (exclude.some((p) => matchesGlob(item, p))) return;
       if (item.startsWith(".") || item.startsWith("_")) return;
 
       const itemPath = path.join(settings.swatchkitDir, item);
       if (fs.lstatSync(itemPath).isDirectory()) {
         const hasIndex = fs.existsSync(path.join(itemPath, "index.html"));
-        
+
         if (!hasIndex) {
-           // It is a Section Container (e.g. "Utilities")
-           const sectionName = item === 'tokens' ? 'Design Tokens' : toTitleCase(item);
-           const swatches = scanSwatches(itemPath, scripts, exclude);
-           if (swatches.length > 0) {
-             sections[sectionName] = swatches;
-           }
+          // It is a Section Container (e.g. "Utilities")
+          const sectionName =
+            item === "tokens" ? "Design Tokens" : toTitleCase(item);
+          const swatches = scanSwatches(itemPath, scripts, exclude);
+          if (swatches.length > 0) {
+            sections[sectionName] = swatches;
+          }
         }
       }
     });
 
     // Scan root swatches (Files + Component Folders at root)
     const rootSwatches = [];
-    items.forEach(item => {
-        if (exclude.some(p => matchesGlob(item, p))) return;
-        if (item.startsWith(".") || item.startsWith("_")) return;
-        
-        const itemPath = path.join(settings.swatchkitDir, item);
-        const stat = fs.statSync(itemPath);
-        
-        if (stat.isFile() && item.endsWith('.html')) {
-             const name = path.basename(item, ".html");
-             const content = fs.readFileSync(itemPath, "utf-8");
-             rootSwatches.push({ name, id: name, content });
-        } else if (stat.isDirectory()) {
-            const indexFile = path.join(itemPath, "index.html");
-            if (fs.existsSync(indexFile)) {
-                // Component folder swatch at root
-                const name = item;
-                const content = fs.readFileSync(indexFile, "utf-8");
-                rootSwatches.push({ name, id: name, content });
-                
-                // Collect JS
-                const jsFiles = fs.readdirSync(itemPath).filter(f => f.endsWith(".js"));
-                jsFiles.forEach(jsFile => {
-                    const scriptContent = fs.readFileSync(path.join(itemPath, jsFile), "utf-8");
-                    scripts.push(`/* ${name}/${jsFile} */ (function(){${scriptContent}})();`);
-                });
-            }
+    items.forEach((item) => {
+      if (exclude.some((p) => matchesGlob(item, p))) return;
+      if (item.startsWith(".") || item.startsWith("_")) return;
+
+      const itemPath = path.join(settings.swatchkitDir, item);
+      const stat = fs.statSync(itemPath);
+
+      if (stat.isFile() && item.endsWith(".html")) {
+        const name = path.basename(item, ".html");
+        const content = fs.readFileSync(itemPath, "utf-8");
+        rootSwatches.push({ name, id: name, content });
+      } else if (stat.isDirectory()) {
+        const indexFile = path.join(itemPath, "index.html");
+        if (fs.existsSync(indexFile)) {
+          // Component folder swatch at root
+          const name = item;
+          const content = fs.readFileSync(indexFile, "utf-8");
+          rootSwatches.push({ name, id: name, content });
+
+          // Collect JS
+          const jsFiles = fs
+            .readdirSync(itemPath)
+            .filter((f) => f.endsWith(".js"));
+          jsFiles.forEach((jsFile) => {
+            const scriptContent = fs.readFileSync(
+              path.join(itemPath, jsFile),
+              "utf-8",
+            );
+            scripts.push(
+              `/* ${name}/${jsFile} */ (function(){${scriptContent}})();`,
+            );
+          });
         }
+      }
     });
-    
+
     if (rootSwatches.length > 0) {
-        sections["Patterns"] = rootSwatches;
+      sections["Patterns"] = rootSwatches;
     }
   }
 
@@ -483,38 +491,41 @@ function build(settings) {
 
   // Helper to sort sections: Tokens first, then A-Z, Patterns last
   const sortedKeys = Object.keys(sections).sort((a, b) => {
-    if (a === 'Design Tokens') return -1;
-    if (b === 'Design Tokens') return 1;
-    if (a === 'Patterns') return 1;
-    if (b === 'Patterns') return -1;
+    if (a === "Design Tokens") return -1;
+    if (b === "Design Tokens") return 1;
+    if (a === "Patterns") return 1;
+    if (b === "Patterns") return -1;
     return a.localeCompare(b);
   });
 
-  sortedKeys.forEach(section => {
+  sortedKeys.forEach((section) => {
     const swatches = sections[section];
     sidebarLinks += `<h3>${section}</h3>\n`;
+    sidebarLinks += `<ul role="list">\n`;
     sidebarLinks += swatches
-      .map((p) => `<a href="#${p.id}">${p.name}</a>`)
+      .map((p) => `  <li><a href="#${p.id}">${p.name}</a></li>`)
       .join("\n");
-    sidebarLinks += `\n`;
+    sidebarLinks += `\n</ul>\n`;
 
     // Generate Blocks
-    swatchBlocks += swatches.map((p) => {
-      const escapedContent = p.content
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    swatchBlocks += swatches
+      .map((p) => {
+        const escapedContent = p.content
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
 
-      return `
+        return `
       <section id="${p.id}">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
         <div class="preview">${p.content}</div>
         <pre><code>${escapedContent}</code></pre>
       </section>
     `;
-    }).join("\n");
+      })
+      .join("\n");
   });
 
   // 6. Write JS Bundle
@@ -557,12 +568,12 @@ function watch(settings) {
     settings.swatchkitDir,
     settings.tokensDir,
     settings.projectLayout,
-    settings.stylesCssFile
-  ].filter(p => fs.existsSync(p)); // Only watch files that exist
+    settings.stylesCssFile,
+  ].filter((p) => fs.existsSync(p)); // Only watch files that exist
 
   console.log("[SwatchKit] Watch mode enabled.");
   console.log("Watching for changes in:");
-  watchPaths.forEach(p => console.log(`  - ${p}`));
+  watchPaths.forEach((p) => console.log(`  - ${p}`));
 
   let buildTimeout;
   const rebuild = () => {
@@ -580,10 +591,10 @@ function watch(settings) {
   const watcher = chokidar.watch(watchPaths, {
     ignored: /(^|[\/\\])\../, // ignore dotfiles
     persistent: true,
-    ignoreInitial: true
+    ignoreInitial: true,
   });
 
-  watcher.on('all', (event, path) => {
+  watcher.on("all", (event, path) => {
     rebuild();
   });
 }

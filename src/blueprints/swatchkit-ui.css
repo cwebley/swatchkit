@@ -1,5 +1,16 @@
 /* SwatchKit UI Styles */
 
+nav {
+  /* TODO: consider a utility class here */
+  padding-block-start: var(--space-l);
+  border-inline-end: 2px solid var(--color-mid);
+}
+
+main {
+  /* TODO: consider a utility class here */
+  padding-block-start: var(--space-l);
+}
+
 /* Sidebar Navigation */
 .swatchkit-nav {
   background-color: var(--color-light);
@@ -22,13 +33,6 @@
 .swatchkit-nav a:hover {
   color: var(--color-primary);
   text-decoration: underline;
-}
-
-/* Main Content Area */
-.swatchkit-main {
-  padding: var(--space-xl);
-  flex-grow: 999; /* Ensure it takes space in sidebar layout */
-  min-width: 50%;
 }
 
 /* Pattern Preview Blocks */

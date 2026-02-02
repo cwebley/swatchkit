@@ -15,8 +15,8 @@
 @import "compositions/index.css";
 
 :root {
-  /* Default gutter for compositions */
   --gutter: var(--space-s-l, 1rem);
+  --measure: 65ch;
 }
 
 /* === Base Styles === */
