@@ -117,16 +117,16 @@ function resolveSettings(cliOptions, fileConfig) {
       : path.join(cwd, "public/swatchkit");
 
   // CSS directory - where tokens.css and user's styles.css live
-  // Default: css/ at project root (not src/css/)
-  const cssDir = fileConfig.css
-    ? path.resolve(cwd, fileConfig.css)
+  // Default: css/ at project root
+  const cssDir = fileConfig.cssDir
+    ? path.resolve(cwd, fileConfig.cssDir)
     : path.join(cwd, "css");
 
-  // Token definitions directory
-  // Default: swatches/tokens/ (not src/tokens/)
-  const tokensDir = fileConfig.tokens?.input
-    ? path.resolve(cwd, fileConfig.tokens.input)
-    : path.join(swatchkitDir, "tokens");
+  // Token definitions directory (JSON files the user edits)
+  // Default: tokens/ at project root (separate from swatchkit/ UI)
+  const tokensDir = fileConfig.tokensDir
+    ? path.resolve(cwd, fileConfig.tokensDir)
+    : path.join(cwd, "tokens");
 
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
@@ -164,11 +164,18 @@ function runInit(settings, options) {
     fs.mkdirSync(settings.swatchkitDir, { recursive: true });
   }
 
-  // Create swatches/tokens directory (for both JSON definitions and HTML patterns)
+  // Create tokens/ directory at project root (JSON token definitions)
   const tokensDir = settings.tokensDir;
   if (!fs.existsSync(tokensDir)) {
     console.log(`Creating tokens directory: ${tokensDir}`);
     fs.mkdirSync(tokensDir, { recursive: true });
+  }
+
+  // Create swatchkit/tokens/ directory (HTML/JS visual previews)
+  const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
+  if (!fs.existsSync(tokensUiDir)) {
+    console.log(`Creating tokens UI directory: ${tokensUiDir}`);
+    fs.mkdirSync(tokensUiDir, { recursive: true });
   }
 
   // Create css/ directory at project root
@@ -177,6 +184,7 @@ function runInit(settings, options) {
     fs.mkdirSync(settings.cssDir, { recursive: true });
   }
 
+  // Copy JSON token blueprints to tokens/ (project root)
   const copyDefault = (srcFilename, destFilename) => {
     const destPath = path.join(tokensDir, destFilename);
     if (!fs.existsSync(destPath)) {
@@ -187,29 +195,17 @@ function runInit(settings, options) {
     }
   };
 
-  // 1. Create Colors Token
   copyDefault("colors.json", "colors.json");
-
-  // 2. Create Text Weights Token
   copyDefault("text-weights.json", "text-weights.json");
-
-  // 3. Create Text Leading Token
   copyDefault("text-leading.json", "text-leading.json");
-
-  // 4. Create Viewports Token
   copyDefault("viewports.json", "viewports.json");
-
-  // 5. Create Text Sizes Token (Fluid)
   copyDefault("text-sizes.json", "text-sizes.json");
-
-  // 6. Create Spacing Token
   copyDefault("spacing.json", "spacing.json");
-
-  // 7. Create Fonts Token
   copyDefault("fonts.json", "fonts.json");
 
+  // Copy HTML/JS template patterns to swatchkit/tokens/ (UI documentation)
   const copyTemplate = (srcFilename, destFilename) => {
-    const destPath = path.join(tokensDir, destFilename);
+    const destPath = path.join(tokensUiDir, destFilename);
     if (!fs.existsSync(destPath)) {
       const srcPath = path.join(__dirname, "src/templates", srcFilename);
       const content = fs.readFileSync(srcPath, "utf-8");
@@ -218,7 +214,6 @@ function runInit(settings, options) {
     }
   };
 
-  // Create sample patterns
   copyTemplate("colors.html", "colors.html");
   copyTemplate("text-weights.html", "text-weights.html");
   copyTemplate("text-leading.html", "text-leading.html");
@@ -226,8 +221,8 @@ function runInit(settings, options) {
   copyTemplate("spacing.html", "spacing.html");
   copyTemplate("fonts.html", "fonts.html");
 
-  // Create shared script for tokens
-  const tokensScriptFile = path.join(tokensDir, "script.js");
+  // Create shared script for tokens UI
+  const tokensScriptFile = path.join(tokensUiDir, "script.js");
   if (!fs.existsSync(tokensScriptFile)) {
     const srcPath = path.join(__dirname, "src/templates/script.js");
     const content = fs.readFileSync(srcPath, "utf-8");

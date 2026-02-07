@@ -20,16 +20,21 @@ This will create:
 
 ```
 my-project/
+├── tokens/                 # Design token definitions (you edit these)
+│   ├── colors.json
+│   ├── fonts.json
+│   ├── spacing.json
+│   └── ...
 ├── css/
 │   ├── compositions/       # Layout primitives (flow, sidebar, etc.)
-│   ├── tokens.css          # Generated design tokens
+│   ├── tokens.css          # Generated from tokens/*.json
 │   ├── styles.css          # Starter stylesheet (imports tokens + compositions)
 │   └── swatchkit-ui.css    # UI styles for the documentation sidebar
 ├── swatchkit/
 │   ├── _layout.html        # Layout template (you own this)
-│   └── tokens/             # Token definitions + documentation patterns
-│       ├── colors.json
+│   └── tokens/             # Visual documentation for design tokens
 │       ├── colors.html
+│       ├── typography.html
 │       └── ...
 └── public/
     └── swatchkit/          # Built pattern library
@@ -65,8 +70,9 @@ SwatchKit automatically turns subfolders into sections in the documentation side
 
 ```
 swatchkit/
-├── tokens/              # Section: "Design Tokens"
-│   └── colors.json
+├── tokens/              # Section: "Design Tokens" (visual previews)
+│   ├── colors.html
+│   └── typography.html
 ├── components/          # Section: "Components"
 │   ├── button.html
 │   └── card/
@@ -79,11 +85,10 @@ swatchkit/
 
 - **Files at root:** Go to the "Patterns" section.
 - **Subfolders:** Create a new section (e.g. `utilities/` -> "Utilities").
-- **Tokens:** Special folder for JSON definitions.
 
 ### 2. Design Token Engine
 
-SwatchKit scaffolds a design system for you. Edit the JSON files in `swatchkit/tokens/`, and SwatchKit auto-generates `css/tokens.css`.
+SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, and SwatchKit auto-generates `css/tokens.css`.
 
 **Supported Tokens:**
 
@@ -93,7 +98,7 @@ SwatchKit scaffolds a design system for you. Edit the JSON files in `swatchkit/t
 - **Modular Leading** (`text-leading.json`): Generates line-heights using `pow()` modular scales.
 - **Fonts & Weights**: Manages font families and weights.
 
-Documentation patterns for these are automatically created alongside the JSON files.
+Visual documentation patterns for these tokens live in `swatchkit/tokens/` and are created during init.
 
 ### 3. Intelligent Fluid Logic (New!)
 
@@ -105,7 +110,7 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
 - **Fluid:** Provide `min` and `max` (e.g. `16` and `18`).
 - **Auto-Fluid:** Provide just ONE side (`min` or `max`), and SwatchKit calculates the other using a default ratio (1.125).
 
-**Example (`swatchkit/tokens/text-sizes.json`):**
+**Example (`tokens/text-sizes.json`):**
 
 ```json
 {
@@ -137,7 +142,7 @@ SwatchKit can auto-calculate fluid typography and spacing scales.
 
 You can mix modular scales with manual overrides.
 
-**Example (`swatchkit/tokens/text-leading.json`):**
+**Example (`tokens/text-leading.json`):**
 
 ```json
 {
@@ -225,7 +230,10 @@ module.exports = {
   outDir: "./dist/patterns",
 
   // Override CSS directory
-  css: "./assets/css",
+  cssDir: "./assets/css",
+
+  // Override tokens directory (JSON token definitions)
+  tokensDir: "./src/tokens",
 
   // Exclude files (supports glob patterns)
   exclude: ["*.test.js", "temp*"],
