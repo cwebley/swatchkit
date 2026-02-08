@@ -160,31 +160,31 @@ function resolveSettings(cliOptions, fileConfig) {
 
 // --- 4. Init Command Logic ---
 function runInit(settings, options) {
-  console.log("[SwatchKit] Initializing...");
+  console.log("[SwatchKit] Scaffolding project structure...");
 
   // Ensure swatchkit directory exists
   if (!fs.existsSync(settings.swatchkitDir)) {
-    console.log(`Creating swatchkit directory: ${settings.swatchkitDir}`);
+    console.log(`+ Directory: ${settings.swatchkitDir}`);
     fs.mkdirSync(settings.swatchkitDir, { recursive: true });
   }
 
   // Create tokens/ directory at project root (JSON token definitions)
   const tokensDir = settings.tokensDir;
   if (!fs.existsSync(tokensDir)) {
-    console.log(`Creating tokens directory: ${tokensDir}`);
+    console.log(`+ Directory: ${tokensDir}`);
     fs.mkdirSync(tokensDir, { recursive: true });
   }
 
   // Create swatchkit/tokens/ directory (HTML/JS visual previews)
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
   if (!fs.existsSync(tokensUiDir)) {
-    console.log(`Creating tokens UI directory: ${tokensUiDir}`);
+    console.log(`+ Directory: ${tokensUiDir}`);
     fs.mkdirSync(tokensUiDir, { recursive: true });
   }
 
   // Create css/ directory at project root
   if (!fs.existsSync(settings.cssDir)) {
-    console.log(`Creating CSS directory: ${settings.cssDir}`);
+    console.log(`+ Directory: ${settings.cssDir}`);
     fs.mkdirSync(settings.cssDir, { recursive: true });
   }
 
@@ -195,7 +195,7 @@ function runInit(settings, options) {
       const srcPath = path.join(__dirname, "src/blueprints", srcFilename);
       const content = fs.readFileSync(srcPath, "utf-8");
       fs.writeFileSync(destPath, content);
-      console.log(`Created token file at ${destPath}`);
+      console.log(`+ Token Blueprint: ${destFilename}`);
     }
   };
 
@@ -216,7 +216,7 @@ function runInit(settings, options) {
       const srcPath = path.join(__dirname, "src/templates", srcFilename);
       const content = fs.readFileSync(srcPath, "utf-8");
       fs.writeFileSync(destPath, content.trim());
-      console.log(`Created pattern at ${destPath}`);
+      console.log(`+ Pattern Template: ${destFilename}`);
     }
   };
 
@@ -229,15 +229,34 @@ function runInit(settings, options) {
     const srcPath = path.join(__dirname, "src/templates/script.js");
     const content = fs.readFileSync(srcPath, "utf-8");
     fs.writeFileSync(tokensScriptFile, content.trim());
-    console.log(`Created tokens script at ${tokensScriptFile}`);
+    console.log(`+ Script: ${path.basename(tokensScriptFile)}`);
   }
 
   // Create main.css entry point
   if (!fs.existsSync(settings.mainCssFile)) {
     const srcPath = path.join(__dirname, "src/blueprints/main.css");
-    const content = fs.readFileSync(srcPath, "utf-8");
+    let content = fs.readFileSync(srcPath, "utf-8");
+
+    // Default: Copy the files
+    const copyCssBlueprint = (filename) => {
+      const src = path.join(__dirname, "src/blueprints", filename);
+      // Ensure destination path (cssDir) exists
+      if (!fs.existsSync(settings.cssDir)) {
+          fs.mkdirSync(settings.cssDir, { recursive: true });
+      }
+      const dest = path.join(settings.cssDir, filename);
+      // Only copy if destination doesn't exist
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        fs.copyFileSync(src, dest);
+        console.log(`+ CSS Blueprint: ${filename}`);
+      }
+    };
+    
+    copyCssBlueprint("variables.css");
+    copyCssBlueprint("global-styles.css");
+
     fs.writeFileSync(settings.mainCssFile, content);
-    console.log(`Created main stylesheet at ${settings.mainCssFile}`);
+    console.log(`+ CSS Blueprint: main.css`);
   }
 
   // Copy CSS Reset
@@ -245,7 +264,7 @@ function runInit(settings, options) {
   const resetDest = path.join(settings.cssDir, "reset.css");
   if (fs.existsSync(resetSrc) && !fs.existsSync(resetDest)) {
     fs.copyFileSync(resetSrc, resetDest);
-    console.log(`Created CSS reset at ${resetDest}`);
+    console.log(`+ CSS Blueprint: reset.css`);
   }
 
   // Copy Compositions
@@ -260,7 +279,7 @@ function runInit(settings, options) {
   const uiDest = path.join(settings.cssDir, "swatchkit-ui.css");
   if (fs.existsSync(uiSrc) && !fs.existsSync(uiDest)) {
     fs.copyFileSync(uiSrc, uiDest);
-    console.log(`Created UI styles at ${uiDest}`);
+    console.log(`+ CSS Blueprint: swatchkit-ui.css`);
   }
 
   // Generate initial tokens.css
@@ -269,20 +288,18 @@ function runInit(settings, options) {
   const targetLayout = settings.projectLayout;
 
   if (fs.existsSync(targetLayout) && !options.force) {
-    console.warn(`Warning: Layout file already exists at ${targetLayout}`);
-    console.warn("Use --force to overwrite.");
-    return;
-  }
-
-  if (fs.existsSync(settings.internalLayout)) {
-    const layoutContent = fs.readFileSync(settings.internalLayout, "utf-8");
-    fs.writeFileSync(targetLayout, layoutContent);
-    console.log(`Created layout file at ${targetLayout}`);
+    console.warn(`! Layout already exists: ${targetLayout} (Use --force to overwrite)`);
   } else {
-    console.error(
-      `Error: Internal layout file not found at ${settings.internalLayout}`,
-    );
-    process.exit(1);
+    if (fs.existsSync(settings.internalLayout)) {
+      const layoutContent = fs.readFileSync(settings.internalLayout, "utf-8");
+      fs.writeFileSync(targetLayout, layoutContent);
+      console.log(`+ Layout: ${path.basename(targetLayout)}`);
+    } else {
+      console.error(
+        `Error: Internal layout file not found at ${settings.internalLayout}`,
+      );
+      process.exit(1);
+    }
   }
 
   // Copy preview layout template (standalone page for individual swatches)
@@ -294,7 +311,7 @@ function runInit(settings, options) {
         "utf-8",
       );
       fs.writeFileSync(targetPreview, previewContent);
-      console.log(`Created preview layout at ${targetPreview}`);
+      console.log(`+ Layout: ${path.basename(targetPreview)}`);
     }
   }
 }
@@ -313,7 +330,7 @@ function copyDir(src, dest, force = false) {
     } else {
       if (force || !fs.existsSync(destPath)) {
         fs.copyFileSync(srcPath, destPath);
-        if (!force) console.log(`Created file at ${destPath}`);
+        if (!force) console.log(`+ Copied: ${entry.name}`);
       }
     }
   }
@@ -412,6 +429,7 @@ function build(settings) {
   });
 
   // 2.5 Process Tokens
+  console.log("Reading JSON tokens (tokens/*.json)...");
   processTokens(settings.tokensDir, settings.cssDir);
 
   // 2.6 Generate token display HTML from JSON
@@ -419,18 +437,18 @@ function build(settings) {
   if (fs.existsSync(tokensUiDir)) {
     const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir);
     if (generated > 0) {
-      console.log(`Generated ${generated} token display files`);
+      console.log(`Generated ${generated} token documentation files (swatchkit/tokens/*.html)`);
     }
   }
 
   // 3. Copy CSS files (recursively)
   if (fs.existsSync(settings.cssDir)) {
-    console.log("Copying CSS...");
+    console.log("Copying static CSS assets (css/*)...");
     copyDir(settings.cssDir, settings.distCssDir, true);
   }
 
   // 4. Read swatches & JS
-  console.log("Processing swatches...");
+  console.log("Scanning HTML patterns (swatchkit/**/*.html)...");
   const scripts = [];
   const sections = {}; // Map<SectionName, Array<Swatch>>
 
