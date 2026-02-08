@@ -28,7 +28,7 @@ my-project/
 ├── css/
 │   ├── compositions/       # Layout primitives (flow, sidebar, etc.)
 │   ├── tokens.css          # Generated from tokens/*.json
-│   ├── styles.css          # Starter stylesheet (imports tokens + compositions)
+│   ├── main.css            # Main stylesheet (imports tokens + compositions)
 │   └── swatchkit-ui.css    # UI styles for the documentation sidebar
 ├── swatchkit/
 │   ├── _layout.html        # Layout template (you own this)
@@ -158,7 +158,7 @@ You can mix modular scales with manual overrides.
 
 ### 5. CSS Workflow
 
-SwatchKit generates `css/tokens.css` with your design tokens. The starter `css/styles.css` imports this file along with layout primitives:
+SwatchKit generates `css/tokens.css` with your design tokens. Your `css/main.css` imports this file along with layout primitives:
 
 ```css
 @import 'tokens.css';
@@ -170,7 +170,7 @@ body {
 }
 ```
 
-The pattern library uses **your stylesheet** (`styles.css`), so components render exactly as they will in your app.
+The pattern library uses **your stylesheet** (`main.css`), so components render exactly as they will in your app.
 
 **Documentation Styling:**
 The sidebar and documentation layout are styled by `css/swatchkit-ui.css`. This file is separate from your app styles so you can customize the docs UI without affecting your production CSS.
