@@ -185,6 +185,14 @@ ul:not([class]) > li {
 }
 
 /**
+ * Inside list items, add space between elements (like nested lists or paragraphs)
+ * This ensures content inside list items flows nicely.
+ */
+:is(ol, ul):not([class]) li + * {
+  margin-block-start: var(--flow-space, var(--space-xs));
+}
+
+/**
  * Marker sizing uses relative units so they scale with text.
  * lh (line-height) units work well for disc markers;
  * em units work well for numbers.
@@ -319,6 +327,7 @@ th {
   text-align: left;
   font-weight: var(--weight-bold);
   line-height: var(--leading-fine);
+  background: rgb(0 0 0 / 2%);
 }
 
 thead th {
@@ -417,9 +426,10 @@ a:not([class]):hover {
 /**
  * When navigating to an anchor (#section), add scroll margin so the
  * target doesn't slam against the top of the viewport.
+ * Using 5ex provides a modest cushion (approx 2-3 lines) without being huge.
  */
 :target {
-  scroll-margin-block: 5lh;
+  scroll-margin-block: 5ex;
 }
 
 /**
