@@ -23,11 +23,9 @@
 - region
 - visually-hidden
 - consider moving prose token example to a different category. also rename it if we're using .prose as a utility.
-- consider separating main.css into variables.css and global-styles.css like the pattern library.
 - consider adding the token json file content to the config file?
 - consider using a prefix field in the json files to allow keys like "min" that when coupled with prefix: "viewport-", will turn into "viewport-min". this might make swatchkit-ui display more concise. "min" instead of "viewport-min"
-
-- consider including sensible defaults to global styles. can be not-included with a config value. how might this work when using nova-styles for example?
+- progressively enhance native select component in global-styles
 
 ## UI
 

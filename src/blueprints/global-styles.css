@@ -202,8 +202,8 @@ ol ::marker {
  * Lists with explicit roles and classes are presumed to be styled
  * separately (navigation, tabs, etc.), so remove default spacing.
  */
-[role='list'][class],
-[role='tablist'][class] {
+[role="list"][class],
+[role="tablist"][class] {
   margin-block: 0;
   padding: 0;
 }
@@ -270,7 +270,7 @@ blockquote q {
  * Video embeds (native and from YouTube/Vimeo) get sensible defaults:
  * full width, 16:9 aspect ratio, auto height.
  */
-:is(video, iframe[src*='youtube'], iframe[src*='vimeo']) {
+:is(video, iframe[src*="youtube"], iframe[src*="vimeo"]) {
   display: block;
   width: 100%;
   height: auto;
@@ -461,7 +461,7 @@ svg {
  * Light background ensures dark SVGs don't vanish on dark backgrounds.
  * revert allows the width/height attributes to take control.
  */
-svg[role='img'][width][height] {
+svg[role="img"][width][height] {
   width: revert;
   height: revert;
   background: var(--color-light);
@@ -494,17 +494,21 @@ form > * + * {
  * em units for padding let it scale with text size.
  * width: 100% lets the container determine the size.
  */
-:is(input:not([type='checkbox'], [type='radio'], [type='color']), select, textarea) {
+:is(
+  input:not([type="checkbox"], [type="radio"], [type="color"]),
+  select,
+  textarea
+) {
   padding: 0.5em 0.8em;
   border-radius: var(--radius-s);
   border: var(--stroke-solid);
-  background: var(--color-light);
-  color: var(--color-dark);
+  background: var(--color-dark-glare);
+  color: var(--color-light);
   width: 100%;
 
   &::placeholder {
     color: var(--color-mid);
-    opacity: 1; /* Firefox adds opacity to placeholders by default */
+    opacity: 1;
   }
 }
 
@@ -519,7 +523,7 @@ label {
 }
 
 label::after {
-  content: '\A';
+  content: "\A";
   white-space: pre;
 }
 
