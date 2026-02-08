@@ -281,10 +281,15 @@ blockquote q {
  * Responsive images: max-width prevents blowout on small screens,
  * display: block removes the annoying bottom space from inline display.
  */
-img {
+img,
+picture {
   height: auto;
   max-width: 100%;
   display: block;
+}
+
+picture {
+  width: max-content;
 }
 
 /**
