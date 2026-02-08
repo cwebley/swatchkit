@@ -1,0 +1,373 @@
+<article>
+
+  <h1>Heading Level 1</h1>
+  <h2>Heading Level 2</h2>
+  <h3>Heading Level 3</h3>
+  <h4>Heading Level 4</h4>
+  <h5>Heading Level 5</h5>
+  <h6>Heading Level 6</h6>
+
+  <hr>
+
+  <h2>Paragraphs</h2>
+
+  <p>A paragraph of text to demonstrate how body copy looks with your current global styles. This paragraph has enough content to wrap across multiple lines so you can evaluate line-height, measure, and overall readability. Good typography is invisible — the reader should never have to struggle.</p>
+
+  <p>A second paragraph to show spacing between adjacent blocks of text. This is where <code>flow</code> spacing or prose margins become visible. The gap between these paragraphs should feel natural, not cramped or loose.</p>
+
+  <h2>Inline Elements</h2>
+
+  <p>This paragraph contains <strong>bold text</strong> and <em>italic text</em> and <strong><em>bold italic text</em></strong>. It also has <a href="#">an inline link</a> to test anchor styling. Here is <small>small text</small> for fine print. Use <code>inline code</code> to reference variable names. The <mark>mark element</mark> highlights text. Use <kbd>Ctrl</kbd> + <kbd>S</kbd> for keyboard shortcuts. The <abbr title="Cascading Style Sheets">CSS</abbr> abbreviation element shows on hover. Here is <del>deleted text</del> and <ins>inserted text</ins> for edits. Subscript: H<sub>2</sub>O. Superscript: E = mc<sup>2</sup>. A short inline quote: <q>Design is not just what it looks like, design is how it works.</q></p>
+
+  <h2>Blockquotes</h2>
+
+  <blockquote>
+    <p>The details are not the details. They make the design.</p>
+  </blockquote>
+
+  <blockquote>
+    <p>Good design is as little design as possible. Less, but better — because it concentrates on the essential aspects, and the products are not burdened with non-essentials.</p>
+    <footer>— <cite>Dieter Rams</cite></footer>
+  </blockquote>
+
+  <h2>Lists</h2>
+
+  <h3>Unordered List</h3>
+
+  <ul>
+    <li>Design tokens for consistent styling</li>
+    <li>Fluid typography with clamp()</li>
+    <li>Nested items:
+      <ul>
+        <li>Spacing scales</li>
+        <li>Color palettes</li>
+        <li>Deeper nesting:
+          <ul>
+            <li>Third level item</li>
+            <li>Another third level</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li>Layout compositions</li>
+  </ul>
+
+  <h3>Ordered List</h3>
+
+  <ol>
+    <li>Define your design tokens</li>
+    <li>Generate your CSS custom properties</li>
+    <li>Build your components:
+      <ol>
+        <li>Start with global styles</li>
+        <li>Add compositions</li>
+        <li>Layer in utilities:
+          <ol>
+            <li>Spacing utilities</li>
+            <li>Color utilities</li>
+          </ol>
+        </li>
+      </ol>
+    </li>
+    <li>Document in your pattern library</li>
+  </ol>
+
+  <h3>Description List</h3>
+
+  <dl>
+    <dt>Design Token</dt>
+    <dd>A named value representing a design decision, such as a color, spacing unit, or font size.</dd>
+
+    <dt>Composition</dt>
+    <dd>A layout primitive that controls how child elements are arranged in space.</dd>
+    <dd>Examples include flow, sidebar, cluster, and switcher.</dd>
+
+    <dt>Utility</dt>
+    <dd>A single-purpose CSS class that applies one specific style rule.</dd>
+  </dl>
+
+  <h2>Code</h2>
+
+  <p>Inline code was shown above. Here is a preformatted code block:</p>
+
+<pre><code>:root {
+  --color-primary: #e07a5f;
+  --font-base: system-ui, sans-serif;
+  --gutter: var(--space-s-l, 1rem);
+  --measure: 65ch;
+}
+
+body {
+  font-family: var(--font-base);
+  color: var(--color-dark);
+  background-color: var(--color-light);
+}</code></pre>
+
+  <p>And a block using <code>&lt;samp&gt;</code> for sample output:</p>
+
+  <pre><samp>[SwatchKit] Starting build...
+  Source:   ./swatchkit
+  Output:   ./public/swatchkit
+Build complete! Generated public/swatchkit/index.html</samp></pre>
+
+  <h2>Tables</h2>
+
+  <table>
+    <caption>Design Token Summary</caption>
+    <thead>
+      <tr>
+        <th scope="col">Token</th>
+        <th scope="col">Type</th>
+        <th scope="col">Value</th>
+        <th scope="col">Usage</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>--color-dark</code></td>
+        <td>Color</td>
+        <td>#1a2420</td>
+        <td>Primary text</td>
+      </tr>
+      <tr>
+        <td><code>--color-light</code></td>
+        <td>Color</td>
+        <td>#f8faf7</td>
+        <td>Page background</td>
+      </tr>
+      <tr>
+        <td><code>--color-primary</code></td>
+        <td>Color</td>
+        <td>#e07a5f</td>
+        <td>Accents and links</td>
+      </tr>
+      <tr>
+        <td><code>--space-m</code></td>
+        <td>Spacing</td>
+        <td>clamp(...)</td>
+        <td>General spacing</td>
+      </tr>
+      <tr>
+        <td><code>--s0</code></td>
+        <td>Typography</td>
+        <td>1rem</td>
+        <td>Base font size</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Details &amp; Summary</h2>
+
+  <details>
+    <summary>What is a design token?</summary>
+    <p>A design token is a named entity that stores a visual design attribute. Tokens are used in place of hard-coded values to ensure consistency and maintainability across a design system. They can represent colors, spacing, typography, and more.</p>
+  </details>
+
+  <details>
+    <summary>How does fluid typography work?</summary>
+    <p>Fluid typography uses <code>clamp()</code> to smoothly interpolate font sizes between a minimum and maximum viewport width. Instead of jumping between breakpoints, text scales proportionally with the viewport. The formula considers a minimum size, a preferred size based on viewport units, and a maximum size.</p>
+  </details>
+
+  <h2>Horizontal Rules</h2>
+
+  <p>A paragraph before the rule.</p>
+
+  <hr>
+
+  <p>A paragraph after the rule.</p>
+
+  <h2>Images &amp; Figures</h2>
+
+  <p>A standalone image:</p>
+
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300' viewBox='0 0 600 300'%3E%3Crect fill='%23ddd' width='600' height='300'/%3E%3Ctext fill='%23888' font-family='system-ui,sans-serif' font-size='24' text-anchor='middle' x='300' y='158'%3E600 %C3%97 300%3C/text%3E%3C/svg%3E" alt="Placeholder image" width="600" height="300">
+
+  <figure>
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300' viewBox='0 0 600 300'%3E%3Crect fill='%23ddd' width='600' height='300'/%3E%3Ctext fill='%23888' font-family='system-ui,sans-serif' font-size='24' text-anchor='middle' x='300' y='158'%3EFigure image%3C/text%3E%3C/svg%3E" alt="Placeholder figure image" width="600" height="300">
+    <figcaption>A figure with a caption. Figures are commonly used for images, diagrams, code snippets, and other self-contained content referenced from the main flow.</figcaption>
+  </figure>
+
+  <h2>Forms</h2>
+
+  <form onsubmit="return false;">
+    <fieldset>
+      <legend>Text Inputs</legend>
+
+      <p>
+        <label for="prose-input-text">Text</label><br>
+        <input type="text" id="prose-input-text" placeholder="Enter text">
+      </p>
+
+      <p>
+        <label for="prose-input-email">Email</label><br>
+        <input type="email" id="prose-input-email" placeholder="name@example.com">
+      </p>
+
+      <p>
+        <label for="prose-input-password">Password</label><br>
+        <input type="password" id="prose-input-password" placeholder="Password">
+      </p>
+
+      <p>
+        <label for="prose-input-url">URL</label><br>
+        <input type="url" id="prose-input-url" placeholder="https://example.com">
+      </p>
+
+      <p>
+        <label for="prose-input-search">Search</label><br>
+        <input type="search" id="prose-input-search" placeholder="Search...">
+      </p>
+
+      <p>
+        <label for="prose-input-tel">Telephone</label><br>
+        <input type="tel" id="prose-input-tel" placeholder="+1 (555) 000-0000">
+      </p>
+
+      <p>
+        <label for="prose-input-number">Number</label><br>
+        <input type="number" id="prose-input-number" placeholder="0" min="0" max="100">
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Other Inputs</legend>
+
+      <p>
+        <label for="prose-input-date">Date</label><br>
+        <input type="date" id="prose-input-date">
+      </p>
+
+      <p>
+        <label for="prose-input-time">Time</label><br>
+        <input type="time" id="prose-input-time">
+      </p>
+
+      <p>
+        <label for="prose-input-color">Color</label><br>
+        <input type="color" id="prose-input-color" value="#e07a5f">
+      </p>
+
+      <p>
+        <label for="prose-input-range">Range</label><br>
+        <input type="range" id="prose-input-range" min="0" max="100" value="50">
+      </p>
+
+      <p>
+        <label for="prose-input-file">File</label><br>
+        <input type="file" id="prose-input-file">
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Select &amp; Textarea</legend>
+
+      <p>
+        <label for="prose-select">Select</label><br>
+        <select id="prose-select">
+          <option value="">Choose an option</option>
+          <option value="tokens">Design Tokens</option>
+          <option value="compositions">Compositions</option>
+          <option value="utilities">Utilities</option>
+        </select>
+      </p>
+
+      <p>
+        <label for="prose-select-multiple">Multiple Select</label><br>
+        <select id="prose-select-multiple" multiple size="4">
+          <option value="colors">Colors</option>
+          <option value="spacing">Spacing</option>
+          <option value="typography">Typography</option>
+          <option value="fonts">Fonts</option>
+        </select>
+      </p>
+
+      <p>
+        <label for="prose-textarea">Textarea</label><br>
+        <textarea id="prose-textarea" rows="4" placeholder="Write something..."></textarea>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Checkboxes &amp; Radios</legend>
+
+      <p>
+        <input type="checkbox" id="prose-check-1">
+        <label for="prose-check-1">Checkbox one</label>
+      </p>
+      <p>
+        <input type="checkbox" id="prose-check-2" checked>
+        <label for="prose-check-2">Checkbox two (checked)</label>
+      </p>
+      <p>
+        <input type="checkbox" id="prose-check-3" disabled>
+        <label for="prose-check-3">Checkbox three (disabled)</label>
+      </p>
+
+      <p>
+        <input type="radio" name="prose-radio" id="prose-radio-1">
+        <label for="prose-radio-1">Radio one</label>
+      </p>
+      <p>
+        <input type="radio" name="prose-radio" id="prose-radio-2" checked>
+        <label for="prose-radio-2">Radio two (checked)</label>
+      </p>
+      <p>
+        <input type="radio" name="prose-radio" id="prose-radio-3" disabled>
+        <label for="prose-radio-3">Radio three (disabled)</label>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Input States</legend>
+
+      <p>
+        <label for="prose-input-disabled">Disabled</label><br>
+        <input type="text" id="prose-input-disabled" value="Cannot edit this" disabled>
+      </p>
+
+      <p>
+        <label for="prose-input-readonly">Readonly</label><br>
+        <input type="text" id="prose-input-readonly" value="Can select but not edit" readonly>
+      </p>
+    </fieldset>
+
+    <p>
+      <button type="submit">Submit Button</button>
+      <button type="reset">Reset Button</button>
+      <button type="button">Plain Button</button>
+      <button type="button" disabled>Disabled Button</button>
+    </p>
+  </form>
+
+  <h2>Embedded Content</h2>
+
+  <h3>Inline SVG</h3>
+
+  <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Decorative concentric circles">
+    <circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="100" cy="100" r="70" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="100" cy="100" r="50" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="100" cy="100" r="30" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="100" cy="100" r="10" fill="currentColor"/>
+  </svg>
+
+  <h3>Video</h3>
+
+  <video controls width="100%" style="max-width: 600px;">
+    <source src="" type="video/mp4">
+    Your browser does not support the video element.
+  </video>
+
+  <h2>Meter &amp; Progress</h2>
+
+  <p>
+    <label for="prose-progress">Progress:</label><br>
+    <progress id="prose-progress" value="65" max="100">65%</progress>
+  </p>
+
+  <p>
+    <label for="prose-meter">Meter:</label><br>
+    <meter id="prose-meter" min="0" max="100" low="25" high="75" optimum="80" value="65">65 out of 100</meter>
+  </p>
+
+</article>

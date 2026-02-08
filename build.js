@@ -138,15 +138,18 @@ function resolveSettings(cliOptions, fileConfig) {
     tokensDir,
     exclude,
     fileConfig, // Expose config to init
-    // Internal layout template (relative to this script)
+    // Internal layout templates (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
-    // Project specific layout override
+    internalPreviewLayout: path.join(__dirname, "src/preview-layout.html"),
+    // Project specific layout overrides
     projectLayout: path.join(swatchkitDir, "_layout.html"),
+    projectPreviewLayout: path.join(swatchkitDir, "_preview.html"),
 
     // Derived paths
     distCssDir: path.join(outDir, "css"),
     distTokensCssFile: path.join(outDir, "css", "tokens.css"),
     distJsDir: path.join(outDir, "js"),
+    distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
     outputJsFile: path.join(outDir, "js/swatches.js"),
     tokensCssFile: path.join(cssDir, "tokens.css"),
@@ -220,6 +223,7 @@ function runInit(settings, options) {
   copyTemplate("typography.html", "typography.html");
   copyTemplate("spacing.html", "spacing.html");
   copyTemplate("fonts.html", "fonts.html");
+  copyTemplate("prose.html", "prose.html");
 
   // Create shared script for tokens UI
   const tokensScriptFile = path.join(tokensUiDir, "script.js");
@@ -281,6 +285,19 @@ function runInit(settings, options) {
       `Error: Internal layout file not found at ${settings.internalLayout}`,
     );
     process.exit(1);
+  }
+
+  // Copy preview layout template (standalone page for individual swatches)
+  const targetPreview = settings.projectPreviewLayout;
+  if (!fs.existsSync(targetPreview)) {
+    if (fs.existsSync(settings.internalPreviewLayout)) {
+      const previewContent = fs.readFileSync(
+        settings.internalPreviewLayout,
+        "utf-8",
+      );
+      fs.writeFileSync(targetPreview, previewContent);
+      console.log(`Created preview layout at ${targetPreview}`);
+    }
   }
 }
 
@@ -428,6 +445,8 @@ function build(settings) {
           const sectionName =
             item === "tokens" ? "Design Tokens" : toTitleCase(item);
           const swatches = scanSwatches(itemPath, scripts, exclude);
+          // Tag each swatch with its section slug for preview paths
+          swatches.forEach((s) => (s.sectionSlug = item));
           if (swatches.length > 0) {
             sections[sectionName] = swatches;
           }
@@ -447,14 +466,14 @@ function build(settings) {
       if (stat.isFile() && item.endsWith(".html")) {
         const name = path.basename(item, ".html");
         const content = fs.readFileSync(itemPath, "utf-8");
-        rootSwatches.push({ name, id: name, content });
+        rootSwatches.push({ name, id: name, content, sectionSlug: null });
       } else if (stat.isDirectory()) {
         const indexFile = path.join(itemPath, "index.html");
         if (fs.existsSync(indexFile)) {
           // Component folder swatch at root
           const name = item;
           const content = fs.readFileSync(indexFile, "utf-8");
-          rootSwatches.push({ name, id: name, content });
+          rootSwatches.push({ name, id: name, content, sectionSlug: null });
 
           // Collect JS
           const jsFiles = fs
@@ -512,10 +531,16 @@ function build(settings) {
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
+        // Build preview path: preview/{section}/{name}.html or preview/{name}.html
+        const previewPath = p.sectionSlug
+          ? `preview/${p.sectionSlug}/${p.id}.html`
+          : `preview/${p.id}.html`;
+
         return `
       <section id="${p.id}">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
         <div class="preview">${p.content}</div>
+        <div class="swatchkit-preview-link"><a href="${previewPath}">View full screen</a></div>
         <pre><code>${escapedContent}</code></pre>
       </section>
     `;
@@ -533,7 +558,56 @@ function build(settings) {
     fs.writeFileSync(settings.outputJsFile, "// No swatch scripts found");
   }
 
-  // 7. Load Layout
+  // 7. Generate preview pages (standalone full-screen view of each swatch)
+  let previewLayoutContent;
+  if (fs.existsSync(settings.projectPreviewLayout)) {
+    previewLayoutContent = fs.readFileSync(
+      settings.projectPreviewLayout,
+      "utf-8",
+    );
+  } else if (fs.existsSync(settings.internalPreviewLayout)) {
+    previewLayoutContent = fs.readFileSync(
+      settings.internalPreviewLayout,
+      "utf-8",
+    );
+  }
+
+  if (previewLayoutContent) {
+    let previewCount = 0;
+    sortedKeys.forEach((section) => {
+      const swatches = sections[section];
+      swatches.forEach((p) => {
+        // Determine output path and relative CSS path
+        let previewFile, cssPath;
+        if (p.sectionSlug) {
+          const sectionDir = path.join(settings.distPreviewDir, p.sectionSlug);
+          if (!fs.existsSync(sectionDir))
+            fs.mkdirSync(sectionDir, { recursive: true });
+          previewFile = path.join(sectionDir, `${p.id}.html`);
+          cssPath = "../../"; // preview/section/file.html -> ../../css/
+        } else {
+          if (!fs.existsSync(settings.distPreviewDir))
+            fs.mkdirSync(settings.distPreviewDir, { recursive: true });
+          previewFile = path.join(settings.distPreviewDir, `${p.id}.html`);
+          cssPath = "../"; // preview/file.html -> ../css/
+        }
+
+        const previewHtml = previewLayoutContent
+          .replace("<!-- PREVIEW_TITLE -->", p.name)
+          .replace("<!-- PREVIEW_CONTENT -->", p.content)
+          .replaceAll("<!-- CSS_PATH -->", cssPath)
+          .replace("<!-- HEAD_EXTRAS -->", "");
+
+        fs.writeFileSync(previewFile, previewHtml);
+        previewCount++;
+      });
+    });
+    console.log(
+      `Generated ${previewCount} preview pages in ${settings.distPreviewDir}`,
+    );
+  }
+
+  // 8. Load Layout
   let layoutContent;
   if (fs.existsSync(settings.projectLayout)) {
     console.log(`Using custom layout: ${settings.projectLayout}`);
@@ -551,7 +625,7 @@ function build(settings) {
     .replace("<!-- SWATCHES -->", swatchBlocks)
     .replace("<!-- HEAD_EXTRAS -->", headExtras);
 
-  // 8. Write output
+  // 9. Write output
   fs.writeFileSync(settings.outputFile, finalHtml);
 
   console.log(`Build complete! Generated ${settings.outputFile}`);
