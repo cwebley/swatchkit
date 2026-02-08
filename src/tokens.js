@@ -287,7 +287,7 @@ function processTokens(tokensDir, cssDir) {
   }
 
   fs.writeFileSync(outputFile, cssContent);
-  console.log(`[SwatchKit] Generated ${outputFile}`);
+  console.log(`+ Generated CSS: ${outputFile} (Do not edit manually)`);
   
   return tokensContext;
 }

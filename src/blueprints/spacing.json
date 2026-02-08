@@ -13,6 +13,7 @@
     { "name": "space-s-l", "min": 14, "max": 40 },
     { "name": "space-xs-l", "min": 7, "max": 40 },
     { "name": "space-m-l", "min": 21, "max": 40 },
+    { "name": "space-s-m", "min": 14, "max": 24 },
     { "name": "space-2xl-4xl", "min": 56, "max": 120 }
   ]
 }
