@@ -279,6 +279,13 @@ function runInit(settings, options) {
     copyDir(compositionsSrc, compositionsDest);
   }
 
+  // Copy Utilities
+  const utilitiesSrc = path.join(__dirname, "src/blueprints/utilities");
+  const utilitiesDest = path.join(settings.cssDir, "utilities");
+  if (fs.existsSync(utilitiesSrc)) {
+    copyDir(utilitiesSrc, utilitiesDest);
+  }
+
   // Copy SwatchKit UI Styles
   const uiSrc = path.join(__dirname, "src/blueprints/swatchkit-ui.css");
   const uiDest = path.join(settings.cssDir, "swatchkit-ui.css");

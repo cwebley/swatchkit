@@ -5,11 +5,19 @@
  * global styles, and compositions. Edit freely - SwatchKit won't overwrite it.
  */
 
-/* Import Global Styles (Reset, Tokens, Variables, Elements) */
+/* 
+ * Import Global Styles (Reset, Tokens, Variables, Elements) 
+ * 
+ * NOTE: Some global styles (variables & elements) are DISABLED by default.
+ * You must open `css/global/index.css` to verify variable names and enable them.
+ */
 @import "global/index.css";
 
 /* Import layout compositions */
 @import "compositions/index.css";
+
+/* Import utilities */
+@import "utilities/index.css";
 
 /* === Your App Styles === */
 
