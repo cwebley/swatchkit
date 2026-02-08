@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const chokidar = require("chokidar");
 const { processTokens } = require("./src/tokens");
+const { generateTokenSwatches } = require("./src/generators");
 
 /**
  * SwatchKit Build Script
@@ -207,6 +208,8 @@ function runInit(settings, options) {
   copyDefault("fonts.json", "fonts.json");
 
   // Copy HTML/JS template patterns to swatchkit/tokens/ (UI documentation)
+  // Note: Token display templates (colors, typography, spacing, etc.) are
+  // generated dynamically at build time from the JSON token files.
   const copyTemplate = (srcFilename, destFilename) => {
     const destPath = path.join(tokensUiDir, destFilename);
     if (!fs.existsSync(destPath)) {
@@ -217,12 +220,7 @@ function runInit(settings, options) {
     }
   };
 
-  copyTemplate("colors.html", "colors.html");
-  copyTemplate("text-weights.html", "text-weights.html");
-  copyTemplate("text-leading.html", "text-leading.html");
-  copyTemplate("typography.html", "typography.html");
-  copyTemplate("spacing.html", "spacing.html");
-  copyTemplate("fonts.html", "fonts.html");
+  // Only copy non-token templates (prose is a kitchen sink, not a token display)
   copyTemplate("prose.html", "prose.html");
 
   // Create shared script for tokens UI
@@ -416,6 +414,15 @@ function build(settings) {
   // 2.5 Process Tokens
   processTokens(settings.tokensDir, settings.cssDir);
 
+  // 2.6 Generate token display HTML from JSON
+  const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
+  if (fs.existsSync(tokensUiDir)) {
+    const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir);
+    if (generated > 0) {
+      console.log(`Generated ${generated} token display files`);
+    }
+  }
+
   // 3. Copy CSS files (recursively)
   if (fs.existsSync(settings.cssDir)) {
     console.log("Copying CSS...");
@@ -537,7 +544,7 @@ function build(settings) {
           : `preview/${p.id}.html`;
 
         return `
-      <section id="${p.id}">
+      <section id="${p.id}" class="flow">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
         <div class="preview">${p.content}</div>
         <div class="swatchkit-preview-link"><a href="${previewPath}">View full screen</a></div>

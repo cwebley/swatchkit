@@ -19,8 +19,8 @@ const clampGenerator = (tokens, viewports) => {
     const maxSize = max / rootSize;
 
     // Convert the pixel viewport sizes into rems
-    const minViewport = viewports.min / rootSize;
-    const maxViewport = viewports.max / rootSize;
+    const minViewport = viewports['viewport-min'] / rootSize;
+    const maxViewport = viewports['viewport-max'] / rootSize;
 
     // Slope and intersection allow us to have a fluid value but also keep that sensible
     const slope = (maxSize - minSize) / (maxViewport - minViewport);
