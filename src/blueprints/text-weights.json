@@ -3,9 +3,9 @@
   "description": "Helper classes and custom properties for common font weights",
   "meta": {},
   "items": [
-    { "name": "Regular", "value": 400 },
-    { "name": "Medium", "value": 500 },
-    { "name": "Bold", "value": 700 },
-    { "name": "Black", "value": 900 }
+    { "name": "weight-regular", "value": 400 },
+    { "name": "weight-medium", "value": 500 },
+    { "name": "weight-bold", "value": 700 },
+    { "name": "weight-black", "value": 900 }
   ]
 }

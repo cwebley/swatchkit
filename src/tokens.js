@@ -7,9 +7,7 @@ function slugify(text) {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-')     // Replace spaces with -
-    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+    .replace(/\s+/g, '-');     // Replace spaces with -
 }
 
 function processTokens(tokensDir, cssDir) {
@@ -21,7 +19,7 @@ function processTokens(tokensDir, cssDir) {
   const tokensContext = {};
 
   // Helper to process a generic token file
-  function processFile(filename, prefix) {
+  function processFile(filename) {
     const filePath = path.join(tokensDir, filename);
     if (!fs.existsSync(filePath)) return;
 
@@ -35,7 +33,7 @@ function processTokens(tokensDir, cssDir) {
         data.items.forEach(item => {
           if (item.name && item.value) {
             const slug = slugify(item.name);
-            cssContent += `  --${prefix}-${slug}: ${item.value};\n`;
+            cssContent += `  --${slug}: ${item.value};\n`;
           }
         });
         cssContent += '\n';
@@ -51,25 +49,28 @@ function processTokens(tokensDir, cssDir) {
     try {
       const fileContent = fs.readFileSync(viewportsFile, 'utf-8');
       const data = JSON.parse(fileContent);
-      
-      // Store parsed viewport data for return and use in other generators
-      tokensContext.viewports = data;
 
-      hasTokens = true;
-      cssContent += `  /* ${data.title || 'Viewports'} */\n`;
-      
-      Object.keys(data).forEach(key => {
-        // Skip metadata keys
-        if (['title', 'description', 'meta', '$schema'].includes(key)) return;
+      if (data.items && Array.isArray(data.items)) {
+        // Build a lookup object for clamp-generator (keyed by name)
+        const viewportsLookup = {};
+        data.items.forEach(item => {
+          viewportsLookup[item.name] = item.value;
+        });
+        tokensContext.viewports = viewportsLookup;
+
+        hasTokens = true;
+        cssContent += `  /* ${data.title || 'Viewports'} */\n`;
         
-        const value = data[key];
-        const slug = slugify(key);
-        // Append 'px' if it's a number
-        const cssValue = typeof value === 'number' ? `${value}px` : value;
-        
-        cssContent += `  --viewport-${slug}: ${cssValue};\n`;
-      });
-      cssContent += '\n';
+        data.items.forEach(item => {
+          if (item.name && item.value !== undefined) {
+            const slug = slugify(item.name);
+            // Append 'px' if it's a number
+            const cssValue = typeof item.value === 'number' ? `${item.value}px` : item.value;
+            cssContent += `  --${slug}: ${cssValue};\n`;
+          }
+        });
+        cssContent += '\n';
+      }
 
     } catch (error) {
       console.error(`[SwatchKit] Error processing viewports.json:`, error.message);
@@ -77,10 +78,10 @@ function processTokens(tokensDir, cssDir) {
   }
 
   // 2. Process Colors
-  processFile('colors.json', 'color');
+  processFile('colors.json');
 
   // 3. Process Text Weights
-  processFile('text-weights.json', 'weight');
+  processFile('text-weights.json');
 
   // 4. Process Text Leading
   const leadingFile = path.join(tokensDir, 'text-leading.json');
@@ -100,10 +101,10 @@ function processTokens(tokensDir, cssDir) {
           
           if (item.value !== undefined) {
              // Manual value (e.g. 1.5)
-             cssContent += `  --leading-${slug}: ${item.value};\n`;
+             cssContent += `  --${slug}: ${item.value};\n`;
           } else if (item.step !== undefined) {
              // Modular scale step (e.g. 1)
-             cssContent += `  --leading-${slug}: calc(var(--leading-scale-base) * pow(var(--leading-scale-ratio), ${item.step}));\n`;
+             cssContent += `  --${slug}: calc(var(--leading-scale-base) * pow(var(--leading-scale-ratio), ${item.step}));\n`;
           }
         });
         cssContent += '\n';
@@ -126,8 +127,8 @@ function processTokens(tokensDir, cssDir) {
 
         // Check if we have viewports for fluid generation
         const hasFluidData = tokensContext.viewports && 
-                             tokensContext.viewports.min && 
-                             tokensContext.viewports.max;
+                             tokensContext.viewports['viewport-min'] && 
+                             tokensContext.viewports['viewport-max'];
         
         const fileRatio = data.fluidRatio || 1.125;
         const fluidItems = [];
@@ -158,7 +159,7 @@ function processTokens(tokensDir, cssDir) {
            const fluidTokens = clampGenerator(fluidItems, tokensContext.viewports);
            fluidTokens.forEach(item => {
              const slug = slugify(item.name);
-             cssContent += `  --s${slug}: ${item.value};\n`;
+             cssContent += `  --${slug}: ${item.value};\n`;
            });
         } else if (fluidItems.length > 0) {
             console.warn('[SwatchKit] Fluid text sizes detected but viewports missing. Skipping fluid generation.');
@@ -168,7 +169,7 @@ function processTokens(tokensDir, cssDir) {
         staticItems.forEach(item => {
           if (item.name && item.value) {
             const slug = slugify(item.name);
-            cssContent += `  --s${slug}: ${item.value};\n`;
+            cssContent += `  --${slug}: ${item.value};\n`;
           }
         });
         
@@ -193,8 +194,8 @@ function processTokens(tokensDir, cssDir) {
 
         // Check if we have viewports for fluid generation
         const hasFluidData = tokensContext.viewports && 
-                             tokensContext.viewports.min && 
-                             tokensContext.viewports.max;
+                             tokensContext.viewports['viewport-min'] && 
+                             tokensContext.viewports['viewport-max'];
         
         const fileRatio = data.fluidRatio || 1.125;
         const fluidItems = [];
@@ -225,7 +226,7 @@ function processTokens(tokensDir, cssDir) {
            const fluidTokens = clampGenerator(fluidItems, tokensContext.viewports);
            fluidTokens.forEach(item => {
              const slug = slugify(item.name);
-             cssContent += `  --space-${slug}: ${item.value};\n`;
+             cssContent += `  --${slug}: ${item.value};\n`;
            });
         } else if (fluidItems.length > 0) {
             console.warn('[SwatchKit] Fluid spacing detected but viewports missing. Skipping fluid generation.');
@@ -235,7 +236,7 @@ function processTokens(tokensDir, cssDir) {
         staticItems.forEach(item => {
           if (item.name && item.value) {
             const slug = slugify(item.name);
-            cssContent += `  --space-${slug}: ${item.value};\n`;
+            cssContent += `  --${slug}: ${item.value};\n`;
           }
         });
         
@@ -263,7 +264,7 @@ function processTokens(tokensDir, cssDir) {
             // Join font names with commas, quoting if necessary (though mostly optional in modern CSS if no special chars)
             // But let's just join them as requested.
             const fontStack = item.value.join(', '); 
-            cssContent += `  --font-${slug}: ${fontStack};\n`;
+            cssContent += `  --${slug}: ${fontStack};\n`;
           }
         });
         cssContent += '\n';

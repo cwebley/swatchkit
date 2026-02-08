@@ -3,7 +3,7 @@
   "description": "Each array of fonts creates a priority-based order. The first font in the array should be the ideal font, followed by sensible, web-safe fallbacks",
   "items": [
     {
-      "name": "Base",
+      "name": "font-base",
       "description": "System fonts for body copy and globally set text.",
       "value": [
         "Satoshi",
@@ -16,7 +16,7 @@
       ]
     },
     {
-      "name": "Mono",
+      "name": "font-mono",
       "description": "Monospace font for code samples etc",
       "value": ["DM Mono", "monospace"]
     }

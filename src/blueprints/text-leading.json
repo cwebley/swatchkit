@@ -4,10 +4,10 @@
   "base": 1,
   "ratio": 1.2,
   "items": [
-    { "name": "Micro", "step": -1 },
-    { "name": "Flat", "step": 0 },
-    { "name": "Fine", "step": 1 },
-    { "name": "Standard", "step": 2 },
-    { "name": "Loose", "step": 3 }
+    { "name": "leading-micro", "step": -1 },
+    { "name": "leading-flat", "step": 0 },
+    { "name": "leading-fine", "step": 1 },
+    { "name": "leading-standard", "step": 2 },
+    { "name": "leading-loose", "step": 3 }
   ]
 }
