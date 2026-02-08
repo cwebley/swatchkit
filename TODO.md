@@ -16,13 +16,11 @@
 
 ## Additions
 
-- add text-wrap pretty in reset to all <p></p>
 - grid composition following lesson 2-6 in complete css.
-- prose composition for margin botton after sections?
 - indent
 - region
 - visually-hidden
-- consider moving prose token example to a different category. also rename it if we're using .prose as a utility.
+- consider moving prose section to compositions section or someplace else.
 - consider adding the token json file content to the config file?
 - consider using a prefix field in the json files to allow keys like "min" that when coupled with prefix: "viewport-", will turn into "viewport-min". this might make swatchkit-ui display more concise. "min" instead of "viewport-min"
 - progressively enhance native select component in global-styles
