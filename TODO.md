@@ -18,6 +18,6 @@
 ## Additions
 
 - grid composition following lesson 2-6 in complete css.
+- prose composition for margin botton after sections?
 - consider naming of styles.css to global.css
-- add a global css prose kitchen sink part: like <http://192.168.1.72:8081/pattern-library/pattern/prose/>. uhh definitely.
-  <https://bloom-barista.academy/pattern-library/pattern-preview/prose/>
+- consider moving prose token example to a different category. also rename it if we're using .prose as a utility.

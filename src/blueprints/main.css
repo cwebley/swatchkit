@@ -1,8 +1,8 @@
 /**
- * SwatchKit Starter Stylesheet
+ * SwatchKit Main Stylesheet
  * 
- * This file imports your design tokens and provides a starting point
- * for your app's styles. Edit freely - SwatchKit won't overwrite it.
+ * This is your app's CSS entry point. It imports design tokens, reset,
+ * and compositions. Edit freely - SwatchKit won't overwrite it.
  */
 
 /* Import CSS Reset */

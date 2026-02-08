@@ -116,7 +116,7 @@ function resolveSettings(cliOptions, fileConfig) {
       ? path.resolve(cwd, fileConfig.outDir)
       : path.join(cwd, "public/swatchkit");
 
-  // CSS directory - where tokens.css and user's styles.css live
+  // CSS directory - where tokens.css and user's main.css live
   // Default: css/ at project root
   const cssDir = fileConfig.cssDir
     ? path.resolve(cwd, fileConfig.cssDir)
@@ -153,7 +153,7 @@ function resolveSettings(cliOptions, fileConfig) {
     outputFile: path.join(outDir, "index.html"),
     outputJsFile: path.join(outDir, "js/swatches.js"),
     tokensCssFile: path.join(cssDir, "tokens.css"),
-    stylesCssFile: path.join(cssDir, "styles.css"),
+    mainCssFile: path.join(cssDir, "main.css"),
   };
 }
 
@@ -234,12 +234,12 @@ function runInit(settings, options) {
     console.log(`Created tokens script at ${tokensScriptFile}`);
   }
 
-  // Create starter styles.css
-  if (!fs.existsSync(settings.stylesCssFile)) {
-    const srcPath = path.join(__dirname, "src/blueprints/styles.css");
+  // Create main.css entry point
+  if (!fs.existsSync(settings.mainCssFile)) {
+    const srcPath = path.join(__dirname, "src/blueprints/main.css");
     const content = fs.readFileSync(srcPath, "utf-8");
-    fs.writeFileSync(settings.stylesCssFile, content);
-    console.log(`Created starter stylesheet at ${settings.stylesCssFile}`);
+    fs.writeFileSync(settings.mainCssFile, content);
+    console.log(`Created main stylesheet at ${settings.mainCssFile}`);
   }
 
   // Copy CSS Reset
@@ -637,7 +637,7 @@ function watch(settings) {
     settings.swatchkitDir,
     settings.tokensDir,
     settings.projectLayout,
-    settings.stylesCssFile,
+    settings.mainCssFile,
   ].filter((p) => fs.existsSync(p)); // Only watch files that exist
 
   console.log("[SwatchKit] Watch mode enabled.");
