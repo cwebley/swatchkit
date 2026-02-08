@@ -153,7 +153,7 @@ function resolveSettings(cliOptions, fileConfig) {
     distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
     outputJsFile: path.join(outDir, "js/swatches.js"),
-    tokensCssFile: path.join(cssDir, "tokens.css"),
+    tokensCssFile: path.join(cssDir, "global", "tokens.css"),
     mainCssFile: path.join(cssDir, "main.css"),
   };
 }
@@ -186,6 +186,13 @@ function runInit(settings, options) {
   if (!fs.existsSync(settings.cssDir)) {
     console.log(`+ Directory: ${settings.cssDir}`);
     fs.mkdirSync(settings.cssDir, { recursive: true });
+  }
+
+  // Create css/global directory
+  const globalCssDir = path.join(settings.cssDir, "global");
+  if (!fs.existsSync(globalCssDir)) {
+    console.log(`+ Directory: ${globalCssDir}`);
+    fs.mkdirSync(globalCssDir, { recursive: true });
   }
 
   // Copy JSON token blueprints to tokens/ (project root)
@@ -252,19 +259,17 @@ function runInit(settings, options) {
       }
     };
     
-    copyCssBlueprint("variables.css");
-    copyCssBlueprint("global-styles.css");
+    // Global blueprints are now copied as a folder below
 
     fs.writeFileSync(settings.mainCssFile, content);
     console.log(`+ CSS Blueprint: main.css`);
   }
 
-  // Copy CSS Reset
-  const resetSrc = path.join(__dirname, "src/blueprints/reset.css");
-  const resetDest = path.join(settings.cssDir, "reset.css");
-  if (fs.existsSync(resetSrc) && !fs.existsSync(resetDest)) {
-    fs.copyFileSync(resetSrc, resetDest);
-    console.log(`+ CSS Blueprint: reset.css`);
+  // Copy Global Styles Folder
+  const globalSrc = path.join(__dirname, "src/blueprints/global");
+  const globalDest = path.join(settings.cssDir, "global");
+  if (fs.existsSync(globalSrc)) {
+    copyDir(globalSrc, globalDest);
   }
 
   // Copy Compositions
@@ -283,7 +288,10 @@ function runInit(settings, options) {
   }
 
   // Generate initial tokens.css
-  processTokens(settings.tokensDir, settings.cssDir);
+  // processTokens now expects the folder where tokens.css should live
+  // We pass settings.cssDir, but processTokens internally joins 'tokens.css'
+  // So we need to point it to css/global
+  processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
 
   const targetLayout = settings.projectLayout;
 
@@ -430,7 +438,8 @@ function build(settings) {
 
   // 2.5 Process Tokens
   console.log("Reading JSON tokens (tokens/*.json)...");
-  processTokens(settings.tokensDir, settings.cssDir);
+  // Output tokens.css to css/global/tokens.css
+  processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
 
   // 2.6 Generate token display HTML from JSON
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");

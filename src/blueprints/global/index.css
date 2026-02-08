@@ -1,0 +1,21 @@
+/* === Global Styles === */
+
+/* Browser Reset */
+@import "reset.css";
+
+/* Design Tokens (Generated) */
+@import "tokens.css";
+
+/* Utility Variables */
+/*
+ * UNCOMMENT the line below to enable utility variables.
+ * IMPORTANT: Check variable names in variables.css first!
+ */
+/* @import "variables.css"; */
+
+/* Global Element Styles */
+/*
+ * UNCOMMENT the line below to enable global styles.
+ * IMPORTANT: Check token references in global-styles.css first!
+ */
+/* @import "global-styles.css"; */
