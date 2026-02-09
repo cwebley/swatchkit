@@ -16,6 +16,10 @@
 
 ## Additions
 
+- can we wire up an example swatch?
+- background of examples checkerboard like design.visa.com's examples
+- fix full screen preview padding/margin
+- i wish there was a way to avoid adding things to the barrel file. glob selector?
 - grid composition following lesson 2-6 in complete css.
 - indent
 - region

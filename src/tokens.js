@@ -16,10 +16,20 @@ function processTokens(tokensDir, cssDir) {
   cssContent += '/* Edit the JSON files in your tokens directory and rebuild. */\n\n';
   cssContent += ':root {\n';
   let hasTokens = false;
-  const tokensContext = {};
+  
+  // Store structured data for utility generation
+  const tokensContext = {
+    colors: [],
+    textWeights: [],
+    textLeading: [],
+    textSizes: [],
+    spacing: [],
+    fonts: [],
+    viewports: {}
+  };
 
   // Helper to process a generic token file
-  function processFile(filename) {
+  function processFile(filename, contextKey) {
     const filePath = path.join(tokensDir, filename);
     if (!fs.existsSync(filePath)) return;
 
@@ -34,6 +44,11 @@ function processTokens(tokensDir, cssDir) {
           if (item.name && item.value) {
             const slug = slugify(item.name);
             cssContent += `  --${slug}: ${item.value};\n`;
+            
+            // Store for utilities if a key is provided
+            if (contextKey && tokensContext[contextKey]) {
+              tokensContext[contextKey].push({ name: slug, value: item.value });
+            }
           }
         });
         cssContent += '\n';
@@ -78,10 +93,10 @@ function processTokens(tokensDir, cssDir) {
   }
 
   // 2. Process Colors
-  processFile('colors.json');
+  processFile('colors.json', 'colors');
 
   // 3. Process Text Weights
-  processFile('text-weights.json');
+  processFile('text-weights.json', 'textWeights');
 
   // 4. Process Text Leading
   const leadingFile = path.join(tokensDir, 'text-leading.json');
@@ -98,13 +113,22 @@ function processTokens(tokensDir, cssDir) {
 
         data.items.forEach(item => {
           const slug = slugify(item.name);
+          let value;
           
           if (item.value !== undefined) {
              // Manual value (e.g. 1.5)
-             cssContent += `  --${slug}: ${item.value};\n`;
+             value = item.value;
+             cssContent += `  --${slug}: ${value};\n`;
           } else if (item.step !== undefined) {
              // Modular scale step (e.g. 1)
-             cssContent += `  --${slug}: calc(var(--leading-scale-base) * pow(var(--leading-scale-ratio), ${item.step}));\n`;
+             // We can't resolve calc() here for context easily, but utilities use the var anyway
+             value = `calc(var(--leading-scale-base) * pow(var(--leading-scale-ratio), ${item.step}))`;
+             cssContent += `  --${slug}: ${value};\n`;
+          }
+          
+          // Store for utilities
+          if (tokensContext.textLeading) {
+            tokensContext.textLeading.push({ name: slug, value });
           }
         });
         cssContent += '\n';
@@ -160,6 +184,7 @@ function processTokens(tokensDir, cssDir) {
            fluidTokens.forEach(item => {
              const slug = slugify(item.name);
              cssContent += `  --${slug}: ${item.value};\n`;
+             tokensContext.textSizes.push({ name: slug, value: item.value });
            });
         } else if (fluidItems.length > 0) {
             console.warn('[SwatchKit] Fluid text sizes detected but viewports missing. Skipping fluid generation.');
@@ -170,6 +195,7 @@ function processTokens(tokensDir, cssDir) {
           if (item.name && item.value) {
             const slug = slugify(item.name);
             cssContent += `  --${slug}: ${item.value};\n`;
+            tokensContext.textSizes.push({ name: slug, value: item.value });
           }
         });
         
@@ -292,4 +318,57 @@ function processTokens(tokensDir, cssDir) {
   return tokensContext;
 }
 
-module.exports = { processTokens };
+function generateTokenUtilities(tokensContext, cssDir) {
+  const outputFile = path.join(cssDir, 'tokens.css');
+  let cssContent = '/* AUTO-GENERATED Token Utilities */\n';
+  cssContent += '/* Classes that map directly to your tokens */\n\n';
+
+  // 1. Colors (.color\:name, .background-color\:name)
+  if (tokensContext.colors && tokensContext.colors.length > 0) {
+    cssContent += '/* Colors */\n';
+    tokensContext.colors.forEach(item => {
+      // Escape the colon for CSS selector but use normal name for variable
+      // Using !important to ensure utility classes always win specificity wars (CUBE/Every Layout methodology)
+      cssContent += `.color\\:${item.name} { color: var(--${item.name}) !important; }\n`;
+      cssContent += `.background-color\\:${item.name} { background-color: var(--${item.name}) !important; }\n`;
+    });
+    cssContent += '\n';
+  }
+
+  // 2. Text Sizes (.font-size\:name)
+  if (tokensContext.textSizes && tokensContext.textSizes.length > 0) {
+    cssContent += '/* Text Sizes */\n';
+    tokensContext.textSizes.forEach(item => {
+      cssContent += `.font-size\\:${item.name} { font-size: var(--${item.name}) !important; }\n`;
+    });
+    cssContent += '\n';
+  }
+
+  // 3. Text Weights (.font-weight\:name)
+  if (tokensContext.textWeights && tokensContext.textWeights.length > 0) {
+    cssContent += '/* Text Weights */\n';
+    tokensContext.textWeights.forEach(item => {
+      cssContent += `.font-weight\\:${item.name} { font-weight: var(--${item.name}) !important; }\n`;
+    });
+    cssContent += '\n';
+  }
+
+  // 4. Leading (.line-height\:name)
+  if (tokensContext.textLeading && tokensContext.textLeading.length > 0) {
+    cssContent += '/* Line Heights */\n';
+    tokensContext.textLeading.forEach(item => {
+      cssContent += `.line-height\\:${item.name} { line-height: var(--${item.name}) !important; }\n`;
+    });
+    cssContent += '\n';
+  }
+
+  // Ensure cssDir exists
+  if (!fs.existsSync(cssDir)) {
+    fs.mkdirSync(cssDir, { recursive: true });
+  }
+
+  fs.writeFileSync(outputFile, cssContent);
+  console.log(`+ Generated Utilities: ${outputFile} (Do not edit manually)`);
+}
+
+module.exports = { processTokens, generateTokenUtilities };

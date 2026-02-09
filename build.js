@@ -2,7 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const chokidar = require("chokidar");
-const { processTokens } = require("./src/tokens");
+const { processTokens, generateTokenUtilities } = require("./src/tokens");
 const { generateTokenSwatches } = require("./src/generators");
 
 /**
@@ -298,7 +298,11 @@ function runInit(settings, options) {
   // processTokens now expects the folder where tokens.css should live
   // We pass settings.cssDir, but processTokens internally joins 'tokens.css'
   // So we need to point it to css/global
-  processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
+  const tokensContext = processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
+  
+  if (tokensContext) {
+    generateTokenUtilities(tokensContext, path.join(settings.cssDir, "utilities"));
+  }
 
   const targetLayout = settings.projectLayout;
 
@@ -446,7 +450,12 @@ function build(settings) {
   // 2.5 Process Tokens
   console.log("Reading JSON tokens (tokens/*.json)...");
   // Output tokens.css to css/global/tokens.css
-  processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
+  const tokensContext = processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
+  
+  // Generate Utilities to css/utilities/tokens.css
+  if (tokensContext) {
+    generateTokenUtilities(tokensContext, path.join(settings.cssDir, "utilities"));
+  }
 
   // 2.6 Generate token display HTML from JSON
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
