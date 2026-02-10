@@ -12,14 +12,11 @@
   - remove the source of truth for tokens being the json file?
   - the json files are still the source of truth for displaying the tokens in the ui. so maybe the json is the best strat.
 
-- Consider handling utility class helpers. 'text-align:\ center'.
-
 ## Additions
 
 - can we wire up an example swatch?
 - background of examples checkerboard like design.visa.com's examples
 - fix full screen preview padding/margin
-- i wish there was a way to avoid adding things to the barrel file. glob selector?
 - grid composition following lesson 2-6 in complete css.
 - indent
 - region
@@ -31,5 +28,6 @@
 
 ## UI
 
+- use a table for text/spacing so we can see min/max values. also utility token. also consider generating spacing utilities. gutter. flow-space.
 - View full page links styling. and location.
 - need a scroll to top button

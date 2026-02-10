@@ -110,12 +110,12 @@ function resolveSettings(cliOptions, fileConfig) {
   const swatchkitDir = findSwatchkitDir();
 
   // Output Dir
-  // Default: public/swatchkit
+  // Default: dist/swatchkit
   const outDir = cliOptions.outDir
     ? path.resolve(cwd, cliOptions.outDir)
     : fileConfig.outDir
       ? path.resolve(cwd, fileConfig.outDir)
-      : path.join(cwd, "public/swatchkit");
+      : path.join(cwd, "dist/swatchkit");
 
   // CSS directory - where tokens.css and user's main.css live
   // Default: css/ at project root
@@ -428,6 +428,24 @@ ${scriptContent}
   return swatches;
 }
 
+function validateOutDir(outDir) {
+  const cwd = process.cwd();
+  const relative = path.relative(cwd, outDir);
+
+  if (
+    !relative ||                          // outDir === cwd
+    relative === '..' ||                  // above cwd
+    relative.startsWith('../') ||         // above cwd
+    path.isAbsolute(relative) ||          // different drive/root
+    relative.split(path.sep).length < 2   // top-level dir like "dist" with no subfolder
+  ) {
+    console.error(
+      `[SwatchKit] Refusing to clean outDir "${outDir}" — must be a subdirectory at least 2 levels deep (e.g., dist/swatchkit).`,
+    );
+    process.exit(1);
+  }
+}
+
 function build(settings) {
   console.log(`[SwatchKit] Starting build...`);
   console.log(`  Source:   ${settings.swatchkitDir}`);
@@ -442,7 +460,13 @@ function build(settings) {
     process.exit(1);
   }
 
-  // 2. Ensure dist directories exist
+  // 2. Clean previous output (only our subdirectory, never the parent)
+  validateOutDir(settings.outDir);
+  if (fs.existsSync(settings.outDir)) {
+    fs.rmSync(settings.outDir, { recursive: true });
+  }
+
+  // 3. Ensure dist directories exist
   [settings.outDir, settings.distCssDir, settings.distJsDir].forEach((dir) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
@@ -683,7 +707,7 @@ function build(settings) {
 
 // --- 6. Watch Logic ---
 function watch(settings) {
-  const watchPaths = [
+  const sourcePaths = [
     settings.swatchkitDir,
     settings.tokensDir,
     settings.projectLayout,
@@ -692,30 +716,48 @@ function watch(settings) {
 
   console.log("[SwatchKit] Watch mode enabled.");
   console.log("Watching for changes in:");
-  watchPaths.forEach((p) => console.log(`  - ${p}`));
+  sourcePaths.forEach((p) => console.log(`  - ${p}`));
+  console.log(`  Polling: ${settings.outDir} (rebuild if deleted by external tools)`);
 
   let buildTimeout;
+  let isRebuilding = false;
+
   const rebuild = () => {
     if (buildTimeout) clearTimeout(buildTimeout);
     buildTimeout = setTimeout(() => {
       try {
+        isRebuilding = true;
         console.log("[SwatchKit] Change detected. Rebuilding...");
         build(settings);
       } catch (e) {
         console.error("[SwatchKit] Build failed:", e.message);
+      } finally {
+        isRebuilding = false;
       }
     }, 100); // 100ms debounce
   };
 
-  const watcher = chokidar.watch(watchPaths, {
+  // Watch source files for changes
+  const sourceWatcher = chokidar.watch(sourcePaths, {
     ignored: /(^|[\/\\])\../, // ignore dotfiles
     persistent: true,
     ignoreInitial: true,
   });
 
-  watcher.on("all", (event, path) => {
+  sourceWatcher.on("all", () => {
     rebuild();
   });
+
+  // Poll for output directory deletion (e.g., when a framework build wipes dist/).
+  // We use polling instead of a chokidar watcher on the output dir to avoid
+  // infinite rebuild loops — since our own build deletes and recreates the
+  // output directory, an event-based watcher would retrigger endlessly.
+  setInterval(() => {
+    if (!isRebuilding && !fs.existsSync(settings.outDir)) {
+      console.log("[SwatchKit] Output directory was deleted. Rebuilding...");
+      rebuild();
+    }
+  }, 2000);
 }
 
 // --- Main Execution ---
