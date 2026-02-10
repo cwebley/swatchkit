@@ -312,8 +312,11 @@ function processTokens(tokensDir, cssDir) {
     fs.mkdirSync(cssDir, { recursive: true });
   }
 
-  fs.writeFileSync(outputFile, cssContent);
-  console.log(`+ Generated CSS: ${outputFile} (Do not edit manually)`);
+  const existing = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, 'utf-8') : null;
+  if (existing !== cssContent) {
+    fs.writeFileSync(outputFile, cssContent);
+    console.log(`+ Generated CSS: ${outputFile} (Do not edit manually)`);
+  }
   
   return tokensContext;
 }
@@ -367,8 +370,11 @@ function generateTokenUtilities(tokensContext, cssDir) {
     fs.mkdirSync(cssDir, { recursive: true });
   }
 
-  fs.writeFileSync(outputFile, cssContent);
-  console.log(`+ Generated Utilities: ${outputFile} (Do not edit manually)`);
+  const existing = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, 'utf-8') : null;
+  if (existing !== cssContent) {
+    fs.writeFileSync(outputFile, cssContent);
+    console.log(`+ Generated Utilities: ${outputFile} (Do not edit manually)`);
+  }
 }
 
 module.exports = { processTokens, generateTokenUtilities };

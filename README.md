@@ -381,6 +381,10 @@ In watch mode, SwatchKit detects when its output directory is deleted by an exte
 
 SwatchKit only ever writes inside its own output subdirectory — it will never modify or delete other files in `dist/`.
 
+### Watch mode and file watchers
+
+SwatchKit generates files into your source tree during each build — CSS token files (`css/global/tokens.css`, `css/utilities/tokens.css`) and token documentation HTML (`swatchkit/tokens/*.html`). To avoid triggering external file watchers unnecessarily, SwatchKit compares generated content against the existing file and **skips the write when nothing has changed**. This means most rebuilds (e.g., editing an HTML swatch) won't touch your CSS directory at all, preventing infinite rebuild loops when running alongside tools like `onchange`, `chokidar`, or framework dev servers that watch `src/`.
+
 ## Acknowledgements
 
 The CSS compositions included by default in SwatchKit are adapted from [Every Layout](https://every-layout.dev/) by Heydon Pickering and Andy Bell. Highly recommend their documentation for a deep dive into their brilliant CSS techniques.

@@ -287,8 +287,11 @@ function generateTokenSwatches(tokensDir, tokensUiDir) {
     const html = fn(tokensDir);
     if (html) {
       const destPath = path.join(tokensUiDir, filename);
-      fs.writeFileSync(destPath, html);
-      generated++;
+      const existing = fs.existsSync(destPath) ? fs.readFileSync(destPath, 'utf-8') : null;
+      if (existing !== html) {
+        fs.writeFileSync(destPath, html);
+        generated++;
+      }
     }
   });
 
