@@ -270,10 +270,82 @@ module.exports = {
   // Override tokens directory (JSON token definitions)
   tokensDir: "./src/tokens",
 
+  // Skip copying CSS into SwatchKit's output directory.
+  // When false, SwatchKit references CSS at cssPath instead of copying it.
+  // See "Common Workflows" below for when to use this.
+  cssCopy: false,
+
+  // Relative path from SwatchKit's HTML to your CSS files.
+  // Only relevant when cssCopy is false.
+  // Defaults to "../<basename of cssDir>/" (e.g., "../css/" if cssDir is "./src/css").
+  // Set explicitly if your deployed CSS lives at a different path.
+  cssPath: "../css/",
+
   // Exclude files (supports glob patterns)
   exclude: ["*.test.js", "temp*"],
 };
 ```
+
+## Common Workflows
+
+### Deploy alongside your project
+
+If your build tool (Vite, Astro, etc.) already outputs CSS to `dist/`, you don't need SwatchKit to copy it again. Set `cssCopy: false` and SwatchKit's HTML will reference your existing CSS.
+
+```javascript
+// swatchkit.config.js
+module.exports = {
+  cssDir: "./src/css",
+  cssCopy: false,
+};
+```
+
+```
+dist/
+├── css/                    # Your build tool puts CSS here
+│   ├── main.css
+│   └── tokens.css
+├── index.html              # Your project
+└── swatchkit/
+    └── index.html          # References ../css/main.css
+```
+
+SwatchKit derives the default `cssPath` from your `cssDir` name. If `cssDir` is `"./src/css"`, it defaults to `"../css/"`. If `cssDir` is `"./styles"`, it defaults to `"../styles/"`.
+
+If your deployed CSS ends up somewhere else (e.g., Vite hashes it into `dist/assets/`), set `cssPath` explicitly:
+
+```javascript
+module.exports = {
+  cssDir: "./src/css",
+  cssCopy: false,
+  cssPath: "../assets/",
+};
+```
+
+### Local dev only (self-contained)
+
+If SwatchKit is just a development tool and you don't want it in `dist/`, set `outDir` to a separate directory. Keep `cssCopy` enabled (the default) so the output is fully self-contained.
+
+```javascript
+// swatchkit.config.js
+module.exports = {
+  cssDir: "./src/css",
+  outDir: "swatchkit-dist",
+};
+```
+
+```
+my-project/
+├── dist/                   # Your production build (no SwatchKit)
+│   └── ...
+└── swatchkit-dist/         # Self-contained, serve locally during dev
+    ├── css/
+    │   ├── main.css
+    │   └── tokens.css
+    └── index.html
+```
+
+You can serve `swatchkit-dist/` locally during development without affecting your production build.
 
 ## Using with a Framework
 

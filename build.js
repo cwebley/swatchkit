@@ -132,12 +132,24 @@ function resolveSettings(cliOptions, fileConfig) {
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
 
+  // CSS copy behavior
+  // When true (default), copies cssDir into outDir/css/ for a self-contained build.
+  // When false, skips the copy — expects CSS to already exist at cssPath relative to output.
+  const cssCopy = fileConfig.cssCopy !== undefined ? fileConfig.cssCopy : true;
+
+  // Relative path from SwatchKit HTML output to the user's CSS directory.
+  // Only used when cssCopy is false. Derived from cssDir basename by default
+  // (e.g., cssDir: "./src/css" -> "../css/", cssDir: "./styles" -> "../styles/").
+  const cssPath = fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
+
   return {
     swatchkitDir,
     outDir,
     cssDir,
     tokensDir,
     exclude,
+    cssCopy,
+    cssPath,
     fileConfig, // Expose config to init
     // Internal layout templates (relative to this script)
     internalLayout: path.join(__dirname, "src/layout.html"),
@@ -467,7 +479,9 @@ function build(settings) {
   }
 
   // 3. Ensure dist directories exist
-  [settings.outDir, settings.distCssDir, settings.distJsDir].forEach((dir) => {
+  const distDirs = [settings.outDir, settings.distJsDir];
+  if (settings.cssCopy) distDirs.push(settings.distCssDir);
+  distDirs.forEach((dir) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
 
@@ -490,10 +504,12 @@ function build(settings) {
     }
   }
 
-  // 3. Copy CSS files (recursively)
-  if (fs.existsSync(settings.cssDir)) {
+  // 3. Copy CSS files (recursively) — skip if cssCopy is disabled
+  if (settings.cssCopy && fs.existsSync(settings.cssDir)) {
     console.log("Copying static CSS assets (css/*)...");
     copyDir(settings.cssDir, settings.distCssDir, true);
+  } else if (!settings.cssCopy) {
+    console.log(`Skipping CSS copy (cssCopy: false). CSS referenced at: ${settings.cssPath}`);
   }
 
   // 4. Read swatches & JS
@@ -651,25 +667,32 @@ function build(settings) {
     sortedKeys.forEach((section) => {
       const swatches = sections[section];
       swatches.forEach((p) => {
-        // Determine output path and relative CSS path
+        // Determine output path and relative CSS path.
+        // Preview pages need to navigate up to the swatchkit output root,
+        // then follow cssPath to reach the CSS files.
         let previewFile, cssPath;
         if (p.sectionSlug) {
           const sectionDir = path.join(settings.distPreviewDir, p.sectionSlug);
           if (!fs.existsSync(sectionDir))
             fs.mkdirSync(sectionDir, { recursive: true });
           previewFile = path.join(sectionDir, `${p.id}.html`);
-          cssPath = "../../"; // preview/section/file.html -> ../../css/
+          cssPath = "../../" + settings.cssPath; // preview/section/file.html -> ../../ + cssPath
         } else {
           if (!fs.existsSync(settings.distPreviewDir))
             fs.mkdirSync(settings.distPreviewDir, { recursive: true });
           previewFile = path.join(settings.distPreviewDir, `${p.id}.html`);
-          cssPath = "../"; // preview/file.html -> ../css/
+          cssPath = "../" + settings.cssPath; // preview/file.html -> ../ + cssPath
         }
+
+        // JS always lives in the swatchkit output dir, so jsPath just
+        // navigates back to the output root (not to the user's CSS dir).
+        const jsPath = p.sectionSlug ? "../../" : "../";
 
         const previewHtml = previewLayoutContent
           .replace("<!-- PREVIEW_TITLE -->", p.name)
           .replace("<!-- PREVIEW_CONTENT -->", p.content)
           .replaceAll("<!-- CSS_PATH -->", cssPath)
+          .replaceAll("<!-- JS_PATH -->", jsPath)
           .replace("<!-- HEAD_EXTRAS -->", "");
 
         fs.writeFileSync(previewFile, previewHtml);
@@ -697,6 +720,7 @@ function build(settings) {
   const finalHtml = layoutContent
     .replace("<!-- SIDEBAR_LINKS -->", sidebarLinks)
     .replace("<!-- SWATCHES -->", swatchBlocks)
+    .replaceAll("<!-- CSS_PATH -->", settings.cssPath)
     .replace("<!-- HEAD_EXTRAS -->", headExtras);
 
   // 9. Write output
