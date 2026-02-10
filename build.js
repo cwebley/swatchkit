@@ -19,6 +19,7 @@ function parseArgs(args) {
     input: null,
     outDir: null,
     force: false,
+    dryRun: false,
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -29,6 +30,8 @@ function parseArgs(args) {
       options.watch = true;
     } else if (arg === "-f" || arg === "--force") {
       options.force = true;
+    } else if (arg === "--dry-run") {
+      options.dryRun = true;
     } else if (arg === "-c" || arg === "--config") {
       // Handle case where flag is last arg
       if (i + 1 < args.length) {
@@ -170,184 +173,227 @@ function resolveSettings(cliOptions, fileConfig) {
   };
 }
 
-// --- 4. Init Command Logic ---
-function runInit(settings, options) {
-  console.log("[SwatchKit] Scaffolding project structure...");
+// --- 4. Init Manifest & Dry Run ---
 
-  // Ensure swatchkit directory exists
-  if (!fs.existsSync(settings.swatchkitDir)) {
-    console.log(`+ Directory: ${settings.swatchkitDir}`);
-    fs.mkdirSync(settings.swatchkitDir, { recursive: true });
+// Builds a list of all files that init manages.
+// Each entry maps a blueprint source to a project destination.
+// Used by both the actual init and the dry-run status report.
+function buildInitManifest(settings) {
+  const manifest = [];
+  const blueprintsDir = path.join(__dirname, "src/blueprints");
+  const templatesDir = path.join(__dirname, "src/templates");
+
+  // Token blueprint JSON files
+  const tokenFiles = [
+    "colors.json",
+    "text-weights.json",
+    "text-leading.json",
+    "viewports.json",
+    "text-sizes.json",
+    "spacing.json",
+    "fonts.json",
+  ];
+  for (const file of tokenFiles) {
+    manifest.push({
+      src: path.join(blueprintsDir, file),
+      dest: path.join(settings.tokensDir, file),
+    });
   }
 
-  // Create tokens/ directory at project root (JSON token definitions)
-  const tokensDir = settings.tokensDir;
-  if (!fs.existsSync(tokensDir)) {
-    console.log(`+ Directory: ${tokensDir}`);
-    fs.mkdirSync(tokensDir, { recursive: true });
+  // Template files (swatchkit/tokens/)
+  const templateFiles = ["prose.html", "script.js"];
+  for (const file of templateFiles) {
+    manifest.push({
+      src: path.join(templatesDir, file),
+      dest: path.join(settings.swatchkitDir, "tokens", file),
+      transform: (content) => content.trim(),
+    });
   }
 
-  // Create swatchkit/tokens/ directory (HTML/JS visual previews)
-  const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
-  if (!fs.existsSync(tokensUiDir)) {
-    console.log(`+ Directory: ${tokensUiDir}`);
-    fs.mkdirSync(tokensUiDir, { recursive: true });
-  }
+  // CSS entry point
+  manifest.push({
+    src: path.join(blueprintsDir, "main.css"),
+    dest: settings.mainCssFile,
+  });
 
-  // Create css/ directory at project root
-  if (!fs.existsSync(settings.cssDir)) {
-    console.log(`+ Directory: ${settings.cssDir}`);
-    fs.mkdirSync(settings.cssDir, { recursive: true });
-  }
+  // SwatchKit UI styles
+  manifest.push({
+    src: path.join(blueprintsDir, "swatchkit-ui.css"),
+    dest: path.join(settings.cssDir, "swatchkit-ui.css"),
+  });
 
-  // Create css/global directory
-  const globalCssDir = path.join(settings.cssDir, "global");
-  if (!fs.existsSync(globalCssDir)) {
-    console.log(`+ Directory: ${globalCssDir}`);
-    fs.mkdirSync(globalCssDir, { recursive: true });
-  }
-
-  // Copy JSON token blueprints to tokens/ (project root)
-  const copyDefault = (srcFilename, destFilename) => {
-    const destPath = path.join(tokensDir, destFilename);
-    if (!fs.existsSync(destPath)) {
-      const srcPath = path.join(__dirname, "src/blueprints", srcFilename);
-      const content = fs.readFileSync(srcPath, "utf-8");
-      fs.writeFileSync(destPath, content);
-      console.log(`+ Token Blueprint: ${destFilename}`);
-    }
-  };
-
-  copyDefault("colors.json", "colors.json");
-  copyDefault("text-weights.json", "text-weights.json");
-  copyDefault("text-leading.json", "text-leading.json");
-  copyDefault("viewports.json", "viewports.json");
-  copyDefault("text-sizes.json", "text-sizes.json");
-  copyDefault("spacing.json", "spacing.json");
-  copyDefault("fonts.json", "fonts.json");
-
-  // Copy HTML/JS template patterns to swatchkit/tokens/ (UI documentation)
-  // Note: Token display templates (colors, typography, spacing, etc.) are
-  // generated dynamically at build time from the JSON token files.
-  const copyTemplate = (srcFilename, destFilename) => {
-    const destPath = path.join(tokensUiDir, destFilename);
-    if (!fs.existsSync(destPath)) {
-      const srcPath = path.join(__dirname, "src/templates", srcFilename);
-      const content = fs.readFileSync(srcPath, "utf-8");
-      fs.writeFileSync(destPath, content.trim());
-      console.log(`+ Pattern Template: ${destFilename}`);
-    }
-  };
-
-  // Only copy non-token templates (prose is a kitchen sink, not a token display)
-  copyTemplate("prose.html", "prose.html");
-
-  // Create shared script for tokens UI
-  const tokensScriptFile = path.join(tokensUiDir, "script.js");
-  if (!fs.existsSync(tokensScriptFile)) {
-    const srcPath = path.join(__dirname, "src/templates/script.js");
-    const content = fs.readFileSync(srcPath, "utf-8");
-    fs.writeFileSync(tokensScriptFile, content.trim());
-    console.log(`+ Script: ${path.basename(tokensScriptFile)}`);
-  }
-
-  // Create main.css entry point
-  if (!fs.existsSync(settings.mainCssFile)) {
-    const srcPath = path.join(__dirname, "src/blueprints/main.css");
-    let content = fs.readFileSync(srcPath, "utf-8");
-
-    // Default: Copy the files
-    const copyCssBlueprint = (filename) => {
-      const src = path.join(__dirname, "src/blueprints", filename);
-      // Ensure destination path (cssDir) exists
-      if (!fs.existsSync(settings.cssDir)) {
-          fs.mkdirSync(settings.cssDir, { recursive: true });
+  // CSS folder blueprints (global, compositions, utilities)
+  const cssFolders = ["global", "compositions", "utilities"];
+  for (const folder of cssFolders) {
+    const srcDir = path.join(blueprintsDir, folder);
+    if (fs.existsSync(srcDir)) {
+      const files = fs
+        .readdirSync(srcDir)
+        .filter((f) => !fs.statSync(path.join(srcDir, f)).isDirectory());
+      for (const file of files) {
+        manifest.push({
+          src: path.join(srcDir, file),
+          dest: path.join(settings.cssDir, folder, file),
+        });
       }
-      const dest = path.join(settings.cssDir, filename);
-      // Only copy if destination doesn't exist
-      if (fs.existsSync(src) && !fs.existsSync(dest)) {
-        fs.copyFileSync(src, dest);
-        console.log(`+ CSS Blueprint: ${filename}`);
-      }
-    };
-    
-    // Global blueprints are now copied as a folder below
-
-    fs.writeFileSync(settings.mainCssFile, content);
-    console.log(`+ CSS Blueprint: main.css`);
+    }
   }
 
-  // Copy Global Styles Folder
-  const globalSrc = path.join(__dirname, "src/blueprints/global");
-  const globalDest = path.join(settings.cssDir, "global");
-  if (fs.existsSync(globalSrc)) {
-    copyDir(globalSrc, globalDest);
+  // Layout files
+  manifest.push({
+    src: settings.internalLayout,
+    dest: settings.projectLayout,
+  });
+  manifest.push({
+    src: settings.internalPreviewLayout,
+    dest: settings.projectPreviewLayout,
+  });
+
+  return manifest;
+}
+
+// Directories that init ensures exist.
+function getInitDirs(settings) {
+  return [
+    settings.swatchkitDir,
+    settings.tokensDir,
+    path.join(settings.swatchkitDir, "tokens"),
+    settings.cssDir,
+    path.join(settings.cssDir, "global"),
+  ];
+}
+
+// Compare init-managed files against their blueprint sources and print a
+// status report showing what would be created, changed, or is up to date.
+function reportInitStatus(settings) {
+  const cwd = process.cwd();
+  const manifest = buildInitManifest(settings);
+  const dirs = getInitDirs(settings);
+
+  const newDirs = [];
+  const created = [];
+  const changed = [];
+  const upToDate = [];
+
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      newDirs.push(path.relative(cwd, dir) + "/");
+    }
   }
 
-  // Copy Compositions
-  const compositionsSrc = path.join(__dirname, "src/blueprints/compositions");
-  const compositionsDest = path.join(settings.cssDir, "compositions");
-  if (fs.existsSync(compositionsSrc)) {
-    copyDir(compositionsSrc, compositionsDest);
-  }
-
-  // Copy Utilities
-  const utilitiesSrc = path.join(__dirname, "src/blueprints/utilities");
-  const utilitiesDest = path.join(settings.cssDir, "utilities");
-  if (fs.existsSync(utilitiesSrc)) {
-    copyDir(utilitiesSrc, utilitiesDest);
-  }
-
-  // Copy SwatchKit UI Styles
-  const uiSrc = path.join(__dirname, "src/blueprints/swatchkit-ui.css");
-  const uiDest = path.join(settings.cssDir, "swatchkit-ui.css");
-  if (fs.existsSync(uiSrc) && !fs.existsSync(uiDest)) {
-    fs.copyFileSync(uiSrc, uiDest);
-    console.log(`+ CSS Blueprint: swatchkit-ui.css`);
-  }
-
-  // Generate initial tokens.css
-  // processTokens now expects the folder where tokens.css should live
-  // We pass settings.cssDir, but processTokens internally joins 'tokens.css'
-  // So we need to point it to css/global
-  const tokensContext = processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
-  
-  if (tokensContext) {
-    generateTokenUtilities(tokensContext, path.join(settings.cssDir, "utilities"));
-  }
-
-  const targetLayout = settings.projectLayout;
-
-  if (fs.existsSync(targetLayout) && !options.force) {
-    console.warn(`! Layout already exists: ${targetLayout} (Use --force to overwrite)`);
-  } else {
-    if (fs.existsSync(settings.internalLayout)) {
-      const layoutContent = fs.readFileSync(settings.internalLayout, "utf-8");
-      fs.writeFileSync(targetLayout, layoutContent);
-      console.log(`+ Layout: ${path.basename(targetLayout)}`);
+  for (const entry of manifest) {
+    const relDest = path.relative(cwd, entry.dest);
+    if (!fs.existsSync(entry.dest)) {
+      created.push(relDest);
     } else {
-      console.error(
-        `Error: Internal layout file not found at ${settings.internalLayout}`,
-      );
-      process.exit(1);
+      let srcContent = fs.readFileSync(entry.src, "utf-8");
+      if (entry.transform) srcContent = entry.transform(srcContent);
+      const destContent = fs.readFileSync(entry.dest, "utf-8");
+      if (srcContent !== destContent) {
+        changed.push(relDest);
+      } else {
+        upToDate.push(relDest);
+      }
     }
   }
 
-  // Copy preview layout template (standalone page for individual swatches)
-  const targetPreview = settings.projectPreviewLayout;
-  if (!fs.existsSync(targetPreview)) {
-    if (fs.existsSync(settings.internalPreviewLayout)) {
-      const previewContent = fs.readFileSync(
-        settings.internalPreviewLayout,
-        "utf-8",
-      );
-      fs.writeFileSync(targetPreview, previewContent);
-      console.log(`+ Layout: ${path.basename(targetPreview)}`);
-    }
+  if (newDirs.length === 0 && created.length === 0 && changed.length === 0) {
+    console.log("[SwatchKit] All init-managed files are up to date.");
+    return;
+  }
+
+  if (newDirs.length > 0 || created.length > 0) {
+    console.log("\n  New (will be created):");
+    for (const d of newDirs) console.log(`    + ${d}`);
+    for (const f of created) console.log(`    + ${f}`);
+  }
+
+  if (changed.length > 0) {
+    console.log("\n  Changed (differs from latest blueprint):");
+    for (const f of changed) console.log(`    ~ ${f}`);
+  }
+
+  if (upToDate.length > 0) {
+    console.log("\n  Up to date:");
+    for (const f of upToDate) console.log(`    = ${f}`);
+  }
+
+  console.log("");
+
+  if (changed.length > 0 || created.length > 0 || newDirs.length > 0) {
+    console.log(
+      "  Run 'swatchkit init --force' to update all files to latest blueprints.\n",
+    );
   }
 }
 
-// --- 5. Build Logic ---
+// --- 5. Init Command Logic ---
+function runInit(settings, options) {
+  const isInitialized = fs.existsSync(settings.swatchkitDir);
+
+  // --dry-run: always just report status, change nothing.
+  // Already initialized without --force: auto dry-run.
+  if (options.dryRun || (isInitialized && !options.force)) {
+    if (isInitialized && !options.dryRun) {
+      console.log("[SwatchKit] Project already initialized.");
+    }
+    reportInitStatus(settings);
+    return;
+  }
+
+  // Sanity check: internal layout template must exist
+  if (!fs.existsSync(settings.internalLayout)) {
+    console.error(
+      `Error: Internal layout file not found at ${settings.internalLayout}`,
+    );
+    process.exit(1);
+  }
+
+  console.log("[SwatchKit] Scaffolding project structure...");
+
+  // Ensure directories exist
+  const cwd = process.cwd();
+  for (const dir of getInitDirs(settings)) {
+    if (!fs.existsSync(dir)) {
+      console.log(`+ Directory: ${path.relative(cwd, dir)}/`);
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  // Copy all manifest files
+  const manifest = buildInitManifest(settings);
+  for (const entry of manifest) {
+    const exists = fs.existsSync(entry.dest);
+    if (options.force || !exists) {
+      // Ensure parent directory exists (for CSS subdirs like compositions/)
+      const parentDir = path.dirname(entry.dest);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+
+      let content = fs.readFileSync(entry.src, "utf-8");
+      if (entry.transform) content = entry.transform(content);
+      fs.writeFileSync(entry.dest, content);
+
+      const label = path.relative(cwd, entry.dest);
+      console.log(`${exists ? "~ Updated" : "+ Created"}: ${label}`);
+    }
+  }
+
+  // Generate tokens.css and utility tokens.css (always — these are generated files)
+  const tokensContext = processTokens(
+    settings.tokensDir,
+    path.join(settings.cssDir, "global"),
+  );
+  if (tokensContext) {
+    generateTokenUtilities(
+      tokensContext,
+      path.join(settings.cssDir, "utilities"),
+    );
+  }
+}
+
+// --- 6. Build Logic ---
 function copyDir(src, dest, force = false) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
@@ -729,7 +775,7 @@ function build(settings) {
   console.log(`Build complete! Generated ${settings.outputFile}`);
 }
 
-// --- 6. Watch Logic ---
+// --- 7. Watch Logic ---
 function watch(settings) {
   const sourcePaths = [
     settings.swatchkitDir,
