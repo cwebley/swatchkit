@@ -737,9 +737,17 @@ function watch(settings) {
     }, 100); // 100ms debounce
   };
 
-  // Watch source files for changes
+  // Watch source files for changes.
+  // Ignore the tokens UI directory inside swatchkitDir — the build generates
+  // HTML files there (swatchkit/tokens/*.html), which would retrigger the
+  // watcher and cause an infinite rebuild loop.
+  const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
+
   const sourceWatcher = chokidar.watch(sourcePaths, {
-    ignored: /(^|[\/\\])\../, // ignore dotfiles
+    ignored: [
+      /(^|[\/\\])\../, // ignore dotfiles
+      tokensUiDir,      // ignore build-generated token HTML
+    ],
     persistent: true,
     ignoreInitial: true,
   });
