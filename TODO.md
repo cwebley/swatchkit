@@ -14,13 +14,6 @@
 
 ## Additions
 
-- whats this doing in the dist/swatchkit folder:
-
-  /140/󰉋 /css
-  /141/󰉋 /js
-  /142/󰉋 /preview
-  /143/󰌝 /index.html
-
 - consider handling variants on their own/ with their own full screen viewer
 - should we wire up an example swatch?
 - background of examples checkerboard like design.visa.com's examples
