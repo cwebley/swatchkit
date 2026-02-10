@@ -14,7 +14,8 @@
 
 ## Additions
 
-- can we wire up an example swatch?
+- consider handling variants on their own/ with their own full screen viewer
+- should we wire up an example swatch?
 - background of examples checkerboard like design.visa.com's examples
 - fix full screen preview padding/margin
 - grid composition following lesson 2-6 in complete css.
@@ -23,8 +24,9 @@
 - visually-hidden
 - consider moving prose section to compositions section or someplace else.
 - consider adding the token json file content to the config file?
-- consider using a prefix field in the json files to allow keys like "min" that when coupled with prefix: "viewport-", will turn into "viewport-min". this might make swatchkit-ui display more concise. "min" instead of "viewport-min"
+- consider using a prefix field in the json files to allow keys like "min" that when coupled with prefix: "viewport-", will turn into "viewport-min". this might make swatchkit-ui display more concise. "min" instead of "viewport-min". this could have variable or utility class name impact as well. line-height:fine vs line-height:leading-fine
 - progressively enhance native select component in global-styles
+- what else can be progressively enhanced? checkboxes?
 
 ## UI
 
