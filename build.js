@@ -28,6 +28,10 @@ function parseArgs(args) {
       options.command = "init";
     } else if (arg === "-w" || arg === "--watch") {
       options.watch = true;
+    } else if (arg === "-h" || arg === "--help") {
+      options.command = "help";
+    } else if (arg === "-v" || arg === "--version") {
+      options.command = "version";
     } else if (arg === "-f" || arg === "--force") {
       options.force = true;
     } else if (arg === "--dry-run") {
@@ -838,9 +842,46 @@ function watch(settings) {
   }, 2000);
 }
 
+// --- 7. Help & Version ---
+function printVersion() {
+  const pkg = require(path.join(__dirname, "package.json"));
+  console.log(pkg.version);
+}
+
+function printHelp() {
+  const pkg = require(path.join(__dirname, "package.json"));
+  console.log(`SwatchKit v${pkg.version}
+
+Usage: swatchkit [command] [options]
+
+Commands:
+  (default)    Build the pattern library
+  init         Scaffold layout, tokens, and CSS blueprints
+
+Options:
+  -w, --watch     Watch files and rebuild on change
+  -c, --config    Path to config file
+  -i, --input     Pattern directory (default: swatchkit/)
+  -o, --outDir    Output directory (default: dist/swatchkit)
+  -f, --force     Overwrite all init-managed files with latest blueprints
+      --dry-run   Show what init would create or change, without writing
+  -h, --help      Show this help message
+  -v, --version   Show version number`);
+}
+
 // --- Main Execution ---
 try {
   const cliOptions = parseArgs(process.argv);
+
+  if (cliOptions.command === "help") {
+    printHelp();
+    process.exit(0);
+  }
+  if (cliOptions.command === "version") {
+    printVersion();
+    process.exit(0);
+  }
+
   const fileConfig = loadConfig(cliOptions.config);
   const settings = resolveSettings(cliOptions, fileConfig);
 

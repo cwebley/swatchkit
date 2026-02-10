@@ -266,6 +266,8 @@ swatchkit [command] [options]
 | `--outDir`  | `-o`  | Output directory (Default: `dist/swatchkit`).                   |
 | `--force`   | `-f`  | Overwrite all init-managed files with latest blueprints.        |
 | `--dry-run` |       | Show what init would create or change, without writing anything.|
+| `--help`    | `-h`  | Show help message.                                              |
+| `--version` | `-v`  | Show version number.                                            |
 
 ## Configuration
 
