@@ -381,6 +381,37 @@ In watch mode, SwatchKit detects when its output directory is deleted by an exte
 
 SwatchKit only ever writes inside its own output subdirectory — it will never modify or delete other files in `dist/`.
 
+### Example: Custom Build Pipeline
+
+If you are rolling your own build system (e.g. using `onchange` to copy files), use a tool like `npm-run-all` to run your watchers in parallel.
+
+**swatchkit.config.js**
+
+```javascript
+module.exports = {
+  cssDir: "./src/css",
+  cssCopy: false, // Don't copy CSS (your build tool handles it)
+};
+```
+
+**package.json**
+
+```json
+{
+  "scripts": {
+    "build": "rm -rf dist && mkdir -p dist && cp -r src/ dist/",
+    "swatchkit": "swatchkit",
+    "swatchkit:watch": "swatchkit --watch",
+    "dev:app": "onchange 'src/**/*' -- npm run build",
+    "dev": "npm-run-all --parallel dev:app swatchkit:watch"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "onchange": "^7.1.0"
+  }
+}
+```
+
 ### Watch mode and file watchers
 
 SwatchKit generates files into your source tree during each build — CSS token files (`css/global/tokens.css`, `css/utilities/tokens.css`) and token documentation HTML (`swatchkit/tokens/*.html`). To avoid triggering external file watchers unnecessarily, SwatchKit compares generated content against the existing file and **skips the write when nothing has changed**. This means most rebuilds (e.g., editing an HTML swatch) won't touch your CSS directory at all, preventing infinite rebuild loops when running alongside tools like `onchange`, `chokidar`, or framework dev servers that watch `src/`.
