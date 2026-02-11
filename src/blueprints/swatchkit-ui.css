@@ -10,12 +10,13 @@ body {
   margin: 0;
 }
 
-nav {
-  /* TODO: consider a utility class here */
-  padding-block-start: var(--space-l);
-  outline: 2px solid var(--color-dark-glare);
-  background-color: var(--color-mid);
-}
+/* nav { */
+/*   /* TODO: consider a utility class here */
+*/
+/*   padding-block-start: var(--space-l); */
+/*   outline: 2px solid var(--color-dark-glare); */
+/*   background-color: var(--color-mid); */
+/* } */
 
 main {
   /* TODO: consider a utility class here */

@@ -451,7 +451,7 @@ a:not([class]):hover {
  */
 hr {
   border: none;
-  border-block-start: var(--stroke);
+  border-block-start: var(--hr-stroke, var(--stroke));
   margin-block: var(--flow-space, var(--space-xl));
 }
 
