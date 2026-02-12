@@ -31,6 +31,7 @@
 - consider using a prefix field in the json files to allow keys like "min" that when coupled with prefix: "viewport-", will turn into "viewport-min". this might make swatchkit-ui display more concise. "min" instead of "viewport-min". this could have variable or utility class name impact as well. line-height:fine vs line-height:leading-fine. background-color:color-dark-glare a lot for a class name.
 - progressively enhance native select component in global-styles
 - what else can be progressively enhanced? checkboxes?
+- <https://www.youtube.com/watch?v=5uhIiI9Ld5M&t=19m40s> do we need to support a different ratio for max viewports vs min for clamp calculation!?
 
 ## UI
 

@@ -185,8 +185,7 @@ ul:not([class]) > li {
 }
 
 /**
- * Inside list items, add space between elements (like nested lists or paragraphs)
- * This ensures content inside list items flows nicely.
+ * Vertical spacing for list items within standard lists.
  */
 :is(ol, ul):not([class]) li + * {
   margin-block-start: var(--flow-space, var(--space-xs));
