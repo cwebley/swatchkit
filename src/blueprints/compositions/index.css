@@ -9,7 +9,4 @@
 @import "repel.css";
 @import "switcher.css";
 @import "prose.css";
-
-/* Future Compositions:
-@import 'grid.css';
-*/
+@import "grid.css";
