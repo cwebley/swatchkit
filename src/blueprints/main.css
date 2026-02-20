@@ -2,7 +2,10 @@
  * SwatchKit Main Stylesheet
  *
  * This is your app's CSS entry point. It imports design tokens, reset,
- * global styles, and compositions. Edit freely - SwatchKit won't overwrite it.
+ * global styles, and compositions. Edit freely — this file is yours.
+ * Note: swatchkit init --force will overwrite blueprint files (with .bak backups).
+ * The only truly auto-generated files are css/global/tokens.css and
+ * css/utilities/tokens.css — do not edit those manually.
  */
 
 /* 

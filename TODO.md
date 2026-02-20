@@ -1,5 +1,8 @@
 # SwatchKit To-Do
 
+complete css thoughts:
+is the utility class for items-end that andy uses--a variable override? or just align-items: end? prob that huh.
+
 ## Token Strategy
 
 - **Format Evaluation:** Are the JSON files useful for designers/Figma? Should they be? Consider removing unused viewports in default setup.
@@ -37,7 +40,7 @@
 
 - fix the .html in <http://127.0.0.1:8080/swatchkit/preview/swatches/card.html> that happens
 - home page for the padding lib
-- use a table for text/spacing so we can see min/max values. also utility token. also consider generating spacing utilities. gutter. flow-space.
+- use a table for text/spacing so we can see min/max values.
 - View full page links styling. and location.
 - need a scroll to top button
 - print media queries just for fun

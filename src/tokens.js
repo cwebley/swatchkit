@@ -253,6 +253,7 @@ function processTokens(tokensDir, cssDir) {
            fluidTokens.forEach(item => {
              const slug = slugify(item.name);
              cssContent += `  --${slug}: ${item.value};\n`;
+             tokensContext.spacing.push({ name: slug, value: item.value });
            });
         } else if (fluidItems.length > 0) {
             console.warn('[SwatchKit] Fluid spacing detected but viewports missing. Skipping fluid generation.');
@@ -263,6 +264,7 @@ function processTokens(tokensDir, cssDir) {
           if (item.name && item.value) {
             const slug = slugify(item.name);
             cssContent += `  --${slug}: ${item.value};\n`;
+            tokensContext.spacing.push({ name: slug, value: item.value });
           }
         });
         
@@ -361,6 +363,52 @@ function generateTokenUtilities(tokensContext, cssDir) {
     cssContent += '/* Line Heights */\n';
     tokensContext.textLeading.forEach(item => {
       cssContent += `.line-height\\:${item.name} { line-height: var(--${item.name}) !important; }\n`;
+    });
+    cssContent += '\n';
+  }
+
+  // 5. Spacing logical properties (12 per token)
+  if (tokensContext.spacing && tokensContext.spacing.length > 0) {
+    const spacingProperties = [
+      'margin-block',
+      'margin-block-start',
+      'margin-block-end',
+      'margin-inline',
+      'margin-inline-start',
+      'margin-inline-end',
+      'padding-block',
+      'padding-block-start',
+      'padding-block-end',
+      'padding-inline',
+      'padding-inline-start',
+      'padding-inline-end',
+    ];
+    cssContent += '/* Spacing */\n';
+    tokensContext.spacing.forEach(item => {
+      spacingProperties.forEach(prop => {
+        cssContent += `.${prop}\\:${item.name} { ${prop}: var(--${item.name}) !important; }\n`;
+      });
+    });
+    cssContent += '\n';
+
+    // 6. Region space (sets --region-space custom property)
+    cssContent += '/* Region Space */\n';
+    tokensContext.spacing.forEach(item => {
+      cssContent += `.region-space\\:${item.name} { --region-space: var(--${item.name}); }\n`;
+    });
+    cssContent += '\n';
+
+    // 7. Flow space (sets --flow-space custom property)
+    cssContent += '/* Flow Space */\n';
+    tokensContext.spacing.forEach(item => {
+      cssContent += `.flow-space\\:${item.name} { --flow-space: var(--${item.name}); }\n`;
+    });
+    cssContent += '\n';
+
+    // 8. Gutter (sets --gutter custom property)
+    cssContent += '/* Gutter */\n';
+    tokensContext.spacing.forEach(item => {
+      cssContent += `.gutter\\:${item.name} { --gutter: var(--${item.name}); }\n`;
     });
     cssContent += '\n';
   }
