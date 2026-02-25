@@ -9,10 +9,13 @@ It follows the "Magic Folder" principle: drop files in, and a library comes out.
 Try it instantly in any project:
 
 ```bash
-# 1. Initialize the layout and design tokens
-npx swatchkit init
+# 1. Create a config (sets your CSS location and preferences)
+npx swatchkit new
 
-# 2. Build the library
+# 2. Scaffold layout, tokens, and CSS blueprints
+npx swatchkit scaffold
+
+# 3. Build the library
 npx swatchkit
 ```
 
@@ -101,7 +104,7 @@ SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, a
 - **Modular Leading** (`text-leading.json`): Generates line-heights using `pow()` modular scales.
 - **Fonts & Weights**: Manages font families and weights.
 
-Visual documentation patterns for these tokens live in `swatchkit/tokens/` and are created during init.
+Visual documentation patterns for these tokens live in `swatchkit/tokens/` and are created during scaffold.
 
 ### 3. Intelligent Fluid Logic (New!)
 
@@ -180,7 +183,7 @@ The sidebar and documentation layout are styled by `css/swatchkit-ui.css`. This 
 
 ### 6. Custom Layouts
 
-When you run `swatchkit init`, we create `swatchkit/_layout.html`.
+When you run `swatchkit scaffold`, we create `swatchkit/_layout.html`.
 **You own this file.**
 
 - Link to your own stylesheets.
@@ -203,12 +206,12 @@ SwatchKit automatically bundles your JS files, wraps them in a safety scope (IIF
 
 Understanding the build pipeline helps you know which files to edit and which are generated.
 
-### 1. `swatchkit init` (Scaffolding)
-Copies "blueprints" into your project to get you started. Init tracks a manifest of every file it manages (token JSONs, CSS blueprints, layout templates) so it can report what's new, changed, or up to date.
+### 1. `swatchkit scaffold` (Scaffolding)
+Copies "blueprints" into your project to get you started. Scaffold tracks a manifest of every file it manages (token JSONs, CSS blueprints, layout templates) so it can report what's new, changed, or up to date.
 
 *   **Fresh project:** Creates directories and copies all blueprint files.
-*   **Already initialized:** Prints a status report comparing your files to the latest blueprints. Suggests `--force` if anything has changed.
-*   **`--force`:** Overwrites all init-managed files with the latest blueprints. Your custom swatch HTML files and any CSS files without blueprint counterparts are never touched.
+*   **Already scaffolded:** Prints a status report comparing your files to the latest blueprints. Suggests `--force` if anything has changed.
+*   **`--force`:** Overwrites all scaffold-managed files with the latest blueprints. Your custom swatch HTML files and any CSS files without blueprint counterparts are never touched.
 *   **`--dry-run`:** Shows what would happen without writing anything.
 
 Files created:
@@ -227,7 +230,7 @@ Compiles your documentation site into `dist/swatchkit/`.
 
 ### Global Styles & Variables
 SwatchKit includes sensible defaults in `css/global/variables.css` and `css/global/elements.css`.
-*   These are **static files** copied to your project during `init` and **enabled by default**.
+*   These are **static files** copied to your project during `scaffold` and **enabled by default**.
 *   Variable references use the default token names from `tokens/*.json`. If you rename any tokens, update the `var()` references in these files to match.
 *   Both files are yours to edit — add your own variables and element styles freely.
 
@@ -239,9 +242,9 @@ SwatchKit includes sensible defaults in `css/global/variables.css` and `css/glob
 | `css/main.css` | ✅ **YES** | Your entry point. Safe. |
 | `css/global/variables.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/global/elements.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
-| `css/tokens.css` | 🚫 **NO** | Overwritten by **every** `swatchkit build` and `swatchkit init`. |
-| `swatchkit/_layout.html`| ✅ **YES** | Safe during normal use. `init --force` overwrites all init-managed files, including this one. |
-| `swatchkit/_preview.html`| ✅ **YES** | Same as `_layout.html` — safe unless you run `init --force`. |
+| `css/tokens.css` | 🚫 **NO** | Overwritten by every build and `swatchkit scaffold`. |
+| `swatchkit/_layout.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
+| `swatchkit/_preview.html`| ✅ **YES** | Same as `_layout.html` — safe unless you run `scaffold --force`. |
 | `swatchkit/tokens/*.html`| 🚫 **NO** | Overwritten by `swatchkit build` (visual previews). |
 
 ## CLI Reference
@@ -252,27 +255,31 @@ swatchkit [command] [options]
 
 ### Commands
 
-- `swatchkit` (Default): Builds the library.
-- `swatchkit init`: Scaffolds the layout and token files. If the project is already initialized, prints a status report showing which files differ from their blueprints (auto dry-run).
-- `swatchkit init --force`: Overwrites all init-managed files with the latest blueprints. Custom swatch files and CSS files without blueprint counterparts are never touched.
-- `swatchkit init --dry-run`: Shows what would be created or changed without writing anything.
+- `swatchkit new`: Creates `swatchkit.config.js`. Prompts for your CSS directory location. Run this first in any new project.
+- `swatchkit new --cssDir ./src/css`: Non-interactive — creates config without prompting.
+- `swatchkit new --force`: Overwrites an existing config (backs up the old one).
+- `swatchkit scaffold`: Copies CSS blueprints, token JSON files, and layout templates into your project using the settings from `swatchkit.config.js`. If already scaffolded, prints a status report.
+- `swatchkit scaffold --force`: Overwrites all scaffold-managed files with the latest blueprints (with backups).
+- `swatchkit scaffold --dry-run`: Shows what would be created or changed without writing anything.
+- `swatchkit` (Default): Builds the pattern library.
 
 ### Flags
 
-| Flag        | Short | Description                                                     |
-| :---------- | :---- | :-------------------------------------------------------------- |
-| `--watch`   | `-w`  | Watch files and rebuild on change.                              |
-| `--config`  | `-c`  | Path to config file.                                            |
-| `--input`   | `-i`  | Pattern directory (Default: `swatchkit/`).                      |
-| `--outDir`  | `-o`  | Output directory (Default: `dist/swatchkit`).                   |
-| `--force`   | `-f`  | Overwrite all init-managed files with latest blueprints.        |
-| `--dry-run` |       | Show what init would create or change, without writing anything.|
-| `--help`    | `-h`  | Show help message.                                              |
-| `--version` | `-v`  | Show version number.                                            |
+| Flag        | Short | Description                                                        |
+| :---------- | :---- | :----------------------------------------------------------------- |
+| `--watch`   | `-w`  | Watch files and rebuild on change.                                 |
+| `--config`  | `-c`  | Path to config file.                                               |
+| `--input`   | `-i`  | Pattern directory (Default: `swatchkit/`).                         |
+| `--outDir`  | `-o`  | Output directory (Default: `dist/swatchkit`).                      |
+| `--cssDir`  |       | CSS directory, for use with `new` (Default: `src/css`).            |
+| `--force`   | `-f`  | Overwrite existing files (`new`: config, `scaffold`: blueprints).  |
+| `--dry-run` |       | Show what scaffold would create or change, without writing.        |
+| `--help`    | `-h`  | Show help message.                                                 |
+| `--version` | `-v`  | Show version number.                                               |
 
 ## Configuration
 
-Optional. Create `swatchkit.config.js` in your root for persistent settings.
+`swatchkit.config.js` is created by `swatchkit new`. You can also create it manually in your project root.
 
 ```javascript
 module.exports = {

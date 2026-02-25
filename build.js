@@ -18,14 +18,17 @@ function parseArgs(args) {
     config: null,
     input: null,
     outDir: null,
+    cssDir: null,
     force: false,
     dryRun: false,
   };
 
   for (let i = 2; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "init") {
-      options.command = "init";
+    if (arg === "new") {
+      options.command = "new";
+    } else if (arg === "scaffold") {
+      options.command = "scaffold";
     } else if (arg === "-w" || arg === "--watch") {
       options.watch = true;
     } else if (arg === "-h" || arg === "--help") {
@@ -48,6 +51,10 @@ function parseArgs(args) {
     } else if (arg === "-o" || arg === "--outDir") {
       if (i + 1 < args.length) {
         options.outDir = args[++i];
+      }
+    } else if (arg === "--cssDir") {
+      if (i + 1 < args.length) {
+        options.cssDir = args[++i];
       }
     }
   }
@@ -336,12 +343,78 @@ function reportInitStatus(settings) {
 
   if (changed.length > 0 || created.length > 0 || newDirs.length > 0) {
     console.log(
-      "  Run 'swatchkit init --force' to update all files to latest blueprints.\n",
+      "  Run 'swatchkit scaffold --force' to update all files to latest blueprints.\n",
     );
   }
 }
 
-// --- 5. Init Command Logic ---
+// --- 5. New Command Logic ---
+function generateConfig(cssDir) {
+  const isDefaultCssDir = cssDir === './src/css';
+  return `// swatchkit.config.js
+module.exports = {
+  // Where your CSS lives. SwatchKit scaffolds blueprints here and reads
+  // tokens from here when building the pattern library.
+  cssDir: "${cssDir}",
+
+  // Set to true if SwatchKit should copy your CSS into its output directory,
+  // making the pattern library self-contained. Set to false if a build tool
+  // (Vite, Astro, Eleventy, etc.) is already handling your CSS.
+  cssCopy: ${isDefaultCssDir ? 'false' : 'true'},
+
+  // Where token JSON files live.
+  // tokensDir: "./tokens",
+
+  // Where the built pattern library is output.
+  // outDir: "./dist/swatchkit",
+
+  // Files or folders to exclude from the pattern library (supports globs).
+  // exclude: [],
+};
+`;
+}
+
+function runNew(cliOptions) {
+  const cwd = process.cwd();
+  const configPath = path.join(cwd, 'swatchkit.config.js');
+
+  if (fs.existsSync(configPath) && !cliOptions.force) {
+    console.log('[SwatchKit] swatchkit.config.js already exists.');
+    console.log('  Run "swatchkit new --force" to overwrite it.');
+    return;
+  }
+
+  // Non-interactive mode: --cssDir flag provided
+  if (cliOptions.cssDir) {
+    const content = generateConfig(cliOptions.cssDir);
+    fs.writeFileSync(configPath, content);
+    console.log(`+ Created: swatchkit.config.js (cssDir: ${cliOptions.cssDir})`);
+    console.log('  Next: run "swatchkit scaffold" to set up your project.');
+    return;
+  }
+
+  // Interactive mode: prompt for CSS directory
+  const readline = require('readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  rl.question('Where does your CSS live? [src/css]: ', (answer) => {
+    rl.close();
+    const cssDir = answer.trim() ? `./${answer.trim().replace(/^\.\//, '')}` : './src/css';
+    const content = generateConfig(cssDir);
+
+    if (fs.existsSync(configPath) && cliOptions.force) {
+      const backupPath = getBackupPath(configPath);
+      fs.copyFileSync(configPath, backupPath);
+      console.log(`  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`);
+    }
+
+    fs.writeFileSync(configPath, content);
+    console.log(`+ Created: swatchkit.config.js (cssDir: ${cssDir})`);
+    console.log('  Next: run "swatchkit scaffold" to set up your project.');
+  });
+}
+
+// --- 6. Scaffold Command Logic (formerly init) ---
 function runInit(settings, options) {
   const isInitialized = fs.existsSync(settings.swatchkitDir);
 
@@ -882,19 +955,19 @@ function printHelp() {
 Usage: swatchkit [command] [options]
 
 Commands:
+  new          Create a swatchkit.config.js for your project
+  scaffold     Set up CSS blueprints, token files, and layout templates
   (default)    Build the pattern library
-  init         Scaffold layout, tokens, and CSS blueprints
 
 Options:
   -w, --watch     Watch files and rebuild on change
   -c, --config    Path to config file
   -i, --input     Pattern directory (default: swatchkit/)
   -o, --outDir    Output directory (default: dist/swatchkit)
-  -f, --force     Overwrite all blueprint files with latest SwatchKit versions.
-                  Your existing files are backed up as .bak/.bak2 etc. before
-                  overwriting. Only css/global/tokens.css and
-                  css/utilities/tokens.css are excluded (auto-generated).
-      --dry-run   Show what init would create or change, without writing
+      --cssDir    CSS directory, for use with "new" (default: src/css)
+  -f, --force     Overwrite existing files (new: overwrites config,
+                  scaffold: overwrites all blueprint files with backups)
+      --dry-run   Show what scaffold would create or change, without writing
   -h, --help      Show this help message
   -v, --version   Show version number`);
 }
@@ -915,7 +988,9 @@ try {
   const fileConfig = loadConfig(cliOptions.config);
   const settings = resolveSettings(cliOptions, fileConfig);
 
-  if (cliOptions.command === "init") {
+  if (cliOptions.command === "new") {
+    runNew(cliOptions);
+  } else if (cliOptions.command === "scaffold") {
     runInit(settings, cliOptions);
   } else {
     build(settings);
