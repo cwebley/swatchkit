@@ -1,19 +1,13 @@
 /**
- * TODO: CHECK TOKEN REFERENCES
- *
- * This file uses sensible defaults based on standard token names (e.g. --step-0).
- * If you have renamed your tokens in the JSON files, you must update the variable names here
- * to match.
- *
- * Once verified, uncomment the import in main.css.
- */
-
-/**
  * SwatchKit Global Styles
  *
  * Sensible defaults for HTML elements that make content look good
  * without requiring component-specific CSS. Writing CSS "high up"
  * reduces repetition and provides a solid foundation.
+ * This file is yours to edit.
+ *
+ * Variable references use the default token names from tokens/*.json.
+ * If you have renamed any tokens, update the var() references below to match.
  *
  * Based on Andy Bell's Complete CSS course methodology.
  */

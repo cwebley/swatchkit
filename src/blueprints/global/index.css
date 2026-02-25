@@ -7,15 +7,7 @@
 @import "tokens.css";
 
 /* Utility Variables */
-/*
- * UNCOMMENT the line below to enable utility variables.
- * IMPORTANT: Check variable names in variables.css first!
- */
-/* @import "variables.css"; */
+@import "variables.css";
 
 /* Global Element Styles */
-/*
- * UNCOMMENT the line below to enable global styles.
- * IMPORTANT: Check token references in elements.css first!
- */
-/* @import "elements.css"; */
+@import "elements.css";

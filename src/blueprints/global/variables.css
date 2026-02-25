@@ -1,17 +1,12 @@
 /**
- * TODO: CHECK VARIABLE NAMES
- *
- * 1. Check your tokens/*.json files (or css/tokens.css) to see your actual token names.
- * 2. Update the values below to point to your actual tokens.
- *    Example: change var(--space-m-l) to var(--spacing-md) if that matches your tokens.
- * 3. Once updated, uncomment the import in main.css to enable these styles.
- */
-
-/**
  * SwatchKit Variables
  *
- * Utility custom properties that extend the auto-generated design tokens.
+ * Utility custom properties that extend your design tokens.
  * These provide consistent values for layouts, interactions, and UI details.
+ * This file is yours to edit — add your own variables here freely.
+ *
+ * Variable references use the default token names from tokens/*.json.
+ * If you have renamed any tokens, update the var() references below to match.
  *
  * Based on Andy Bell's Complete CSS course methodology.
  */
