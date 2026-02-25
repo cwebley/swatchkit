@@ -31,44 +31,58 @@ function generateColors(tokensDir) {
   const data = readTokenFile(tokensDir, 'colors.json');
   if (!data || !data.items) return null;
 
-  const swatches = data.items.map(item => {
+  const rows = data.items.map(item => {
     const varName = `--${item.name}`;
-    return `  <div class="swatch">
-    <div class="swatch-color" style="background-color: var(${varName});"></div>
-    <div class="swatch-info">
-      <strong>${item.name}</strong><br>
-      var(${varName})
-    </div>
-  </div>`;
+    return `      <tr>
+        <td>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap;">
+            <div style="background: ${item.value}; width: 2rem; height: 2rem; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0;" role="presentation"></div>
+            <strong>${item.name}</strong>
+          </div>
+        </td>
+        <td><code>${item.value}</code></td>
+        <td><code>var(${varName})</code></td>
+        <td><code>.color:${item.name}</code></td>
+        <td><code>.background-color:${item.name}</code></td>
+      </tr>`;
   }).join('\n');
 
   return `<style>
-  .swatch-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-  }
-  .swatch {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .swatch-color {
-    height: 100px;
+  .color-table {
     width: 100%;
-  }
-  .swatch-info {
-    padding: 0.5rem;
-    font-family: monospace;
+    border-collapse: collapse;
     font-size: 0.9rem;
-    background: #f9f9f9;
+  }
+  .color-table th,
+  .color-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #ddd;
+    vertical-align: middle;
+  }
+  .color-table th {
+    font-weight: bold;
+    background: #f5f5f5;
+  }
+  .color-table code {
+    font-family: monospace;
   }
 </style>
 
-<div class="swatch-grid">
-${swatches}
-</div>`;
+<table class="color-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Hex code</th>
+      <th>Custom Property</th>
+      <th>Color Utility Class</th>
+      <th>BG Utility Class</th>
+    </tr>
+  </thead>
+  <tbody>
+${rows}
+  </tbody>
+</table>`;
 }
 
 /**
@@ -109,33 +123,97 @@ function generateSpacing(tokensDir) {
   const data = readTokenFile(tokensDir, 'spacing.json');
   if (!data || !data.items) return null;
 
-  const items = data.items.map(item => {
+  const scaleRows = data.items.map(item => {
     const varName = `--${item.name}`;
-    return `  <div class="spacing-item">
-    <div class="spacing-box" style="width: var(${varName}); height: var(${varName});"></div>
-    <div><strong>${item.name}</strong> <code>var(${varName})</code> <span class="token-value" data-var="${varName}"></span></div>
-  </div>`;
+    const minVal = item.min !== undefined ? `${item.min}px` : (item.value || '—');
+    const maxVal = item.max !== undefined ? `${item.max}px` : (item.value || '—');
+    return `      <tr>
+        <td>
+          <div class="spacing-swatch" style="height: var(${varName});"></div>
+        </td>
+        <td><strong>${item.name}</strong></td>
+        <td><code>var(${varName})</code></td>
+        <td>${minVal}</td>
+        <td>${maxVal}</td>
+      </tr>`;
+  }).join('\n');
+
+  const usageRows = data.items.map(item => {
+    const slug = item.name;
+    return `      <tr>
+        <td><code>var(--${slug})</code></td>
+        <td><code>.padding-block:${slug}</code></td>
+        <td><code>.padding-inline:${slug}</code></td>
+        <td><code>.margin-block:${slug}</code></td>
+        <td><code>.flow-space:${slug}</code></td>
+        <td><code>.gutter:${slug}</code></td>
+        <td><code>.region-space:${slug}</code></td>
+      </tr>`;
   }).join('\n');
 
   return `<style>
-  .spacing-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+  .spacing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
   }
-  .spacing-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+  .spacing-table th,
+  .spacing-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #ddd;
+    vertical-align: middle;
   }
-  .spacing-box {
-    background: var(--color-primary, #000);
-    min-height: 10px;
+  .spacing-table th {
+    font-weight: bold;
+    background: #f5f5f5;
+  }
+  .spacing-table code {
+    font-family: monospace;
+  }
+  .spacing-swatch {
+    background: var(--color-primary, #666);
+    min-height: 4px;
+    width: 100%;
+    min-width: 4px;
+    border-radius: 2px;
   }
 </style>
-<div class="spacing-list">
-${items}
-</div>`;
+
+<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Scale</h2>
+<table class="spacing-table">
+  <thead>
+    <tr>
+      <th width="120px"></th>
+      <th>Name</th>
+      <th>Custom Property</th>
+      <th>Min</th>
+      <th>Max</th>
+    </tr>
+  </thead>
+  <tbody>
+${scaleRows}
+  </tbody>
+</table>
+
+<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Usage</h2>
+<table class="spacing-table">
+  <thead>
+    <tr>
+      <th>Custom Property</th>
+      <th>Padding Block</th>
+      <th>Padding Inline</th>
+      <th>Margin Block</th>
+      <th>Flow Space</th>
+      <th>Gutter</th>
+      <th>Region Space</th>
+    </tr>
+  </thead>
+  <tbody>
+${usageRows}
+  </tbody>
+</table>`;
 }
 
 /**
@@ -229,10 +307,15 @@ function generateViewports(tokensDir) {
   const items = data.items.map(item => {
     const varName = `--${item.name}`;
     const displayValue = typeof item.value === 'number' ? `${item.value}px` : item.value;
+    const barWidth = typeof item.value === 'number' ? `${item.value}px` : '100%';
     return `  <div class="viewport-item">
-    <strong>${item.name}</strong>
-    <code>var(${varName})</code>
-    <span class="viewport-value">${displayValue}</span>
+    <div class="viewport-bar" style="width: ${barWidth}">
+      <span class="viewport-meta">
+        <strong>${item.name}</strong>
+        <code>var(${varName})</code>
+        <span class="viewport-value">${displayValue}</span>
+      </span>
+    </div>
   </div>`;
   }).join('\n');
 
@@ -240,26 +323,34 @@ function generateViewports(tokensDir) {
   .viewport-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
     font-family: monospace;
   }
   .viewport-item {
     display: flex;
+  }
+  .viewport-bar {
+    background: var(--color-primary, #666);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    min-width: max-content;
+    flex-shrink: 0;
+  }
+  .viewport-meta {
+    display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.5rem;
-    background: #f5f5f5;
-    border-radius: 4px;
+    font-size: 0.9rem;
+    color: var(--color-light, #fff);
+    white-space: nowrap;
   }
-  .viewport-item strong {
-    min-width: 120px;
-  }
-  .viewport-item code {
-    color: #666;
+  .viewport-meta code {
+    opacity: 0.75;
   }
   .viewport-value {
-    margin-left: auto;
     font-weight: bold;
+    margin-left: auto;
+    padding-left: 2rem;
   }
 </style>
 <div class="viewport-list">

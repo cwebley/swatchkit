@@ -698,13 +698,17 @@ function build(settings) {
         const previewPath = p.sectionSlug
           ? `preview/${p.sectionSlug}/${p.id}.html`
           : `preview/${p.id}.html`;
+        const previewLink = previewPath.replace(/\.html$/, '');
 
         return `
-      <section id="${p.id}" class="flow">
+      <section id="${p.id}" class="region flow">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
-        <div class="preview">${p.content}</div>
-        <div class="swatchkit-preview-link"><a href="${previewPath}">View full screen</a></div>
-        <pre><code>${escapedContent}</code></pre>
+        <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: vertical; overflow: auto;"></iframe>
+        <div class="swatchkit-preview-link"><a href="${previewLink}">View full screen</a></div>
+        <details>
+          <summary>View source</summary>
+          <pre><code>${escapedContent}</code></pre>
+        </details>
       </section>
     `;
       })

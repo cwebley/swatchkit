@@ -10,6 +10,10 @@ body {
   margin: 0;
 }
 
+.preview {
+  padding: 1rem;
+}
+
 /* nav { */
 /*   /* TODO: consider a utility class here */
 */
