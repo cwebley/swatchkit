@@ -231,6 +231,26 @@ function buildInitManifest(settings) {
     });
   }
 
+  // Utility and composition display templates — walk each subfolder
+  for (const section of ["utilities", "compositions"]) {
+    const sectionSrc = path.join(templatesDir, section);
+    if (!fs.existsSync(sectionSrc)) continue;
+    const folders = fs.readdirSync(sectionSrc).filter(f =>
+      fs.statSync(path.join(sectionSrc, f)).isDirectory()
+    );
+    for (const folder of folders) {
+      const folderSrc = path.join(sectionSrc, folder);
+      const files = fs.readdirSync(folderSrc).filter(f => f.endsWith(".html"));
+      for (const file of files) {
+        manifest.push({
+          src: path.join(folderSrc, file),
+          dest: path.join(settings.swatchkitDir, section, folder, file),
+          transform: (content) => content.trim(),
+        });
+      }
+    }
+  }
+
   // CSS entry point
   manifest.push({
     src: path.join(blueprintsDir, "main.css"),
@@ -279,6 +299,8 @@ function getInitDirs(settings) {
     settings.swatchkitDir,
     settings.tokensDir,
     path.join(settings.swatchkitDir, "tokens"),
+    path.join(settings.swatchkitDir, "utilities"),
+    path.join(settings.swatchkitDir, "compositions"),
     settings.cssDir,
     path.join(settings.cssDir, "global"),
   ];
@@ -544,7 +566,7 @@ function scanSwatches(dir, scriptsCollector, exclude = []) {
     const itemPath = path.join(dir, item);
     const stat = fs.statSync(itemPath);
 
-    let name, content, id;
+    let name, content, id, description;
 
     // Handle Component Directory
     if (stat.isDirectory()) {
@@ -554,6 +576,12 @@ function scanSwatches(dir, scriptsCollector, exclude = []) {
         name = item;
         id = item;
         content = fs.readFileSync(indexFile, "utf-8");
+
+        // Optional description shown above the iframe in the main UI
+        const descriptionFile = path.join(itemPath, "description.html");
+        if (fs.existsSync(descriptionFile)) {
+          description = fs.readFileSync(descriptionFile, "utf-8");
+        }
 
         // Find all .js files
         const jsFiles = fs
@@ -594,7 +622,7 @@ ${scriptContent}
     }
 
     if (name && content) {
-      swatches.push({ name, id, content });
+      swatches.push({ name, id, content, description: description || null });
     }
   });
 
@@ -791,6 +819,7 @@ function build(settings) {
         return `
       <section id="${p.id}" class="region flow">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
+        ${p.description ? `<div class="swatch-description">${p.description}</div>` : ''}
         <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: vertical; overflow: auto;"></iframe>
         <div class="swatchkit-preview-link"><a href="${previewLink}">View full screen</a></div>
         <details>
