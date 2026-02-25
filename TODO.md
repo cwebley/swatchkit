@@ -23,4 +23,5 @@
 
 ## UI
 
+- fix swatchkit ui inline styling to use style tags instead for all examples.
 - scroll to top button
