@@ -222,7 +222,7 @@ function buildInitManifest(settings) {
   }
 
   // Template files (swatchkit/tokens/)
-  const templateFiles = ["prose.html", "script.js"];
+  const templateFiles = ["prose.html"];
   for (const file of templateFiles) {
     manifest.push({
       src: path.join(templatesDir, file),
@@ -350,17 +350,15 @@ function reportInitStatus(settings) {
 
 // --- 5. New Command Logic ---
 function generateConfig(cssDir) {
-  const isDefaultCssDir = cssDir === './src/css';
   return `// swatchkit.config.js
 module.exports = {
   // Where your CSS lives. SwatchKit scaffolds blueprints here and reads
   // tokens from here when building the pattern library.
   cssDir: "${cssDir}",
 
-  // Set to true if SwatchKit should copy your CSS into its output directory,
-  // making the pattern library self-contained. Set to false if a build tool
-  // (Vite, Astro, Eleventy, etc.) is already handling your CSS.
-  cssCopy: ${isDefaultCssDir ? 'false' : 'true'},
+  // Set to false if a build tool (Vite, Astro, Eleventy, etc.) is already
+  // handling your CSS and you don't need SwatchKit to copy it.
+  cssCopy: true,
 
   // Where token JSON files live.
   // tokensDir: "./tokens",
@@ -491,6 +489,23 @@ function runInit(settings, options) {
       path.join(settings.cssDir, "utilities"),
     );
   }
+
+  const cwd2 = process.cwd();
+  const tokensDir = path.relative(cwd2, settings.tokensDir);
+  console.log(`
+Done! Here's what to do next:
+
+  1. Edit your design tokens in ${tokensDir}/
+       colors.json        — your colour palette
+       text-sizes.json    — fluid type scale
+       spacing.json       — fluid spacing scale
+       fonts.json         — font stacks
+       text-weights.json  — font weights
+
+  2. Run "swatchkit" to build the pattern library
+
+  3. Open dist/swatchkit/index.html to view it
+`);
 }
 
 // --- 6. Build Logic ---
@@ -789,13 +804,19 @@ function build(settings) {
   });
 
   // 6. Write JS Bundle
+  // Always prepend the internal token display script (resolves CSS custom
+  // property values shown in token documentation pages).
+  const tokenDisplayScript = fs.readFileSync(
+    path.join(__dirname, "src/templates/script.js"),
+    "utf-8",
+  );
+  const internalScript = `/* --- SwatchKit: token display --- */\n(function() {\n${tokenDisplayScript}\n})();`;
+  const allScripts = [internalScript, ...scripts];
+  fs.writeFileSync(settings.outputJsFile, allScripts.join("\n"));
   if (scripts.length > 0) {
-    fs.writeFileSync(settings.outputJsFile, scripts.join("\n"));
     console.log(
-      `Bundled ${scripts.length} scripts to ${settings.outputJsFile}`,
+      `Bundled ${scripts.length} swatch scripts to ${settings.outputJsFile}`,
     );
-  } else {
-    fs.writeFileSync(settings.outputJsFile, "// No swatch scripts found");
   }
 
   // 7. Generate preview pages (standalone full-screen view of each swatch)
