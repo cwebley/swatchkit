@@ -8,7 +8,7 @@
   },
   "files": [
     "build.js",
-    "src/layout.html"
+    "src/"
   ],
   "scripts": {
     "start": "node build.js",
