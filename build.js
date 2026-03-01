@@ -175,10 +175,8 @@ function resolveSettings(cliOptions, fileConfig) {
     // Derived paths
     distCssDir: path.join(outDir, "css"),
     distTokensCssFile: path.join(outDir, "css", "tokens.css"),
-    distJsDir: path.join(outDir, "js"),
     distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
-    outputJsFile: path.join(outDir, "js/swatches.js"),
     tokensCssFile: path.join(cssDir, "global", "tokens.css"),
     mainCssFile: path.join(cssDir, "main.css"),
   };
@@ -228,6 +226,22 @@ function buildInitManifest(settings) {
       src: path.join(templatesDir, file),
       dest: path.join(settings.swatchkitDir, "tokens", file),
       transform: (content) => content.trim(),
+    });
+  }
+
+  // Hello swatch (default example in swatchkit/swatches/hello/)
+  for (const file of ["index.html", "README.md"]) {
+    manifest.push({
+      src: path.join(templatesDir, "hello", file),
+      dest: path.join(settings.swatchkitDir, "swatches", "hello", file),
+    });
+  }
+
+  // Swatches CSS folder (css/swatches/)
+  for (const file of ["index.css", "hello.css"]) {
+    manifest.push({
+      src: path.join(blueprintsDir, "swatches", file),
+      dest: path.join(settings.cssDir, "swatches", file),
     });
   }
 
@@ -301,8 +315,11 @@ function getInitDirs(settings) {
     path.join(settings.swatchkitDir, "tokens"),
     path.join(settings.swatchkitDir, "utilities"),
     path.join(settings.swatchkitDir, "compositions"),
+    path.join(settings.swatchkitDir, "swatches"),
+    path.join(settings.swatchkitDir, "swatches", "hello"),
     settings.cssDir,
     path.join(settings.cssDir, "global"),
+    path.join(settings.cssDir, "swatches"),
   ];
 }
 
@@ -550,7 +567,26 @@ function copyDir(src, dest, force = false) {
   }
 }
 
-function scanSwatches(dir, scriptsCollector, exclude = []) {
+// Special filenames that SwatchKit reads and treats differently — not copied verbatim.
+const SWATCH_SPECIAL_FILES = new Set(["index.html", "description.html"]);
+
+// Recursively copy a swatch's assets (all files and subdirs except index.html,
+// description.html, and anything prefixed with _ or .) to destDir.
+function copySwatchAssets(srcDir, destDir) {
+  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (entry.name.startsWith("_") || entry.name.startsWith(".")) continue;
+    const src = path.join(srcDir, entry.name);
+    const dest = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copySwatchAssets(src, dest);
+    } else if (!SWATCH_SPECIAL_FILES.has(entry.name)) {
+      fs.copyFileSync(src, dest);
+    }
+  }
+}
+
+function scanSwatches(dir, destDir, exclude = []) {
   const swatches = [];
   if (!fs.existsSync(dir)) return swatches;
 
@@ -583,23 +619,14 @@ function scanSwatches(dir, scriptsCollector, exclude = []) {
           description = fs.readFileSync(descriptionFile, "utf-8");
         }
 
-        // Find all .js files
-        const jsFiles = fs
-          .readdirSync(itemPath)
-          .filter((file) => file.endsWith(".js"));
-
-        jsFiles.forEach((jsFile) => {
-          const scriptContent = fs.readFileSync(
-            path.join(itemPath, jsFile),
-            "utf-8",
-          );
-          scriptsCollector.push(`
-/* --- Swatch: ${name} / File: ${jsFile} --- */
-(function() {
-${scriptContent}
-})();
-`);
-        });
+        // Copy all non-special files and subdirectories from the component
+        // folder into its preview output directory so index.html can reference
+        // them with relative paths (e.g. ./styles.css, ./script.js, ./img/).
+        // Files and directories prefixed with _ or . are skipped.
+        if (destDir) {
+          const swatchDestDir = path.join(destDir, item);
+          copySwatchAssets(itemPath, swatchDestDir);
+        }
       }
     }
     // Handle Single File
@@ -607,18 +634,6 @@ ${scriptContent}
       name = path.basename(item, ".html");
       id = name;
       content = fs.readFileSync(itemPath, "utf-8");
-    }
-    // Handle Loose JS Files (e.g. script.js in tokens/)
-    else if (item.endsWith(".js")) {
-      const scriptContent = fs.readFileSync(itemPath, "utf-8");
-      scriptsCollector.push(`
-/* --- File: ${item} --- */
-(function() {
-${scriptContent}
-})();
-`);
-      // Don't add to swatches list, just scripts
-      return;
     }
 
     if (name && content) {
@@ -668,7 +683,7 @@ function build(settings) {
   }
 
   // 3. Ensure dist directories exist
-  const distDirs = [settings.outDir, settings.distJsDir];
+  const distDirs = [settings.outDir];
   if (settings.cssCopy) distDirs.push(settings.distCssDir);
   distDirs.forEach((dir) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -701,9 +716,8 @@ function build(settings) {
     console.log(`Skipping CSS copy (cssCopy: false). CSS referenced at: ${settings.cssPath}`);
   }
 
-  // 4. Read swatches & JS
+  // 4. Read swatches
   console.log("Scanning HTML patterns (swatchkit/**/*.html)...");
-  const scripts = [];
   const sections = {}; // Map<SectionName, Array<Swatch>>
 
   if (fs.existsSync(settings.swatchkitDir)) {
@@ -723,7 +737,9 @@ function build(settings) {
           // It is a Section Container (e.g. "Utilities")
           const sectionName =
             item === "tokens" ? "Design Tokens" : toTitleCase(item);
-          const swatches = scanSwatches(itemPath, scripts, exclude);
+          // Pass the preview dest dir so extra files get copied alongside each swatch
+          const sectionDestDir = path.join(settings.distPreviewDir, item);
+          const swatches = scanSwatches(itemPath, sectionDestDir, exclude);
           // Tag each swatch with its section slug for preview paths
           swatches.forEach((s) => (s.sectionSlug = item));
           if (swatches.length > 0) {
@@ -749,24 +765,19 @@ function build(settings) {
       } else if (stat.isDirectory()) {
         const indexFile = path.join(itemPath, "index.html");
         if (fs.existsSync(indexFile)) {
-          // Component folder swatch at root
+          // Component folder swatch at root — copy extra files to preview dest
           const name = item;
           const content = fs.readFileSync(indexFile, "utf-8");
-          rootSwatches.push({ name, id: name, content, sectionSlug: null });
+          const descriptionFile = path.join(itemPath, "description.html");
+          const description = fs.existsSync(descriptionFile)
+            ? fs.readFileSync(descriptionFile, "utf-8")
+            : null;
 
-          // Collect JS
-          const jsFiles = fs
-            .readdirSync(itemPath)
-            .filter((f) => f.endsWith(".js"));
-          jsFiles.forEach((jsFile) => {
-            const scriptContent = fs.readFileSync(
-              path.join(itemPath, jsFile),
-              "utf-8",
-            );
-            scripts.push(
-              `/* ${name}/${jsFile} */ (function(){${scriptContent}})();`,
-            );
-          });
+          // Copy extra files into preview/id/
+          const swatchDestDir = path.join(settings.distPreviewDir, name);
+          copySwatchAssets(itemPath, swatchDestDir);
+
+          rootSwatches.push({ name, id: name, content, description, sectionSlug: null });
         }
       }
     });
@@ -810,11 +821,13 @@ function build(settings) {
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
-        // Build preview path: preview/{section}/{name}.html or preview/{name}.html
+        // Build preview path: preview/{section}/{id}/ or preview/{id}/
+        // Each swatch is a directory with its own index.html so sibling assets
+        // (css, js, images, etc.) can be referenced with relative paths.
         const previewPath = p.sectionSlug
-          ? `preview/${p.sectionSlug}/${p.id}.html`
-          : `preview/${p.id}.html`;
-        const previewLink = previewPath.replace(/\.html$/, '');
+          ? `preview/${p.sectionSlug}/${p.id}/`
+          : `preview/${p.id}/`;
+        const previewLink = previewPath;
 
         return `
       <section id="${p.id}" class="region flow">
@@ -832,23 +845,9 @@ function build(settings) {
       .join("\n");
   });
 
-  // 6. Write JS Bundle
-  // Always prepend the internal token display script (resolves CSS custom
-  // property values shown in token documentation pages).
-  const tokenDisplayScript = fs.readFileSync(
-    path.join(__dirname, "src/templates/script.js"),
-    "utf-8",
-  );
-  const internalScript = `/* --- SwatchKit: token display --- */\n(function() {\n${tokenDisplayScript}\n})();`;
-  const allScripts = [internalScript, ...scripts];
-  fs.writeFileSync(settings.outputJsFile, allScripts.join("\n"));
-  if (scripts.length > 0) {
-    console.log(
-      `Bundled ${scripts.length} swatch scripts to ${settings.outputJsFile}`,
-    );
-  }
-
-  // 7. Generate preview pages (standalone full-screen view of each swatch)
+  // 6. Generate preview pages (standalone full-screen view of each swatch)
+  // Each swatch gets its own directory: preview/{section}/{id}/index.html
+  // This allows index.html to reference sibling assets with relative paths.
   let previewLayoutContent;
   if (fs.existsSync(settings.projectPreviewLayout)) {
     previewLayoutContent = fs.readFileSync(
@@ -867,32 +866,25 @@ function build(settings) {
     sortedKeys.forEach((section) => {
       const swatches = sections[section];
       swatches.forEach((p) => {
-        // Determine output path and relative CSS path.
-        // Preview pages need to navigate up to the swatchkit output root,
-        // then follow cssPath to reach the CSS files.
-        let previewFile, cssPath;
+        // Each swatch is output as a directory with index.html inside.
+        // preview/{section}/{id}/index.html  — depth: 3 levels from outDir
+        // preview/{id}/index.html            — depth: 2 levels from outDir
+        let swatchDir, cssPath;
         if (p.sectionSlug) {
-          const sectionDir = path.join(settings.distPreviewDir, p.sectionSlug);
-          if (!fs.existsSync(sectionDir))
-            fs.mkdirSync(sectionDir, { recursive: true });
-          previewFile = path.join(sectionDir, `${p.id}.html`);
-          cssPath = "../../" + settings.cssPath; // preview/section/file.html -> ../../ + cssPath
+          swatchDir = path.join(settings.distPreviewDir, p.sectionSlug, p.id);
+          cssPath = "../../../" + settings.cssPath; // preview/section/id/index.html -> ../../../ + cssPath
         } else {
-          if (!fs.existsSync(settings.distPreviewDir))
-            fs.mkdirSync(settings.distPreviewDir, { recursive: true });
-          previewFile = path.join(settings.distPreviewDir, `${p.id}.html`);
-          cssPath = "../" + settings.cssPath; // preview/file.html -> ../ + cssPath
+          swatchDir = path.join(settings.distPreviewDir, p.id);
+          cssPath = "../../" + settings.cssPath; // preview/id/index.html -> ../../ + cssPath
         }
 
-        // JS always lives in the swatchkit output dir, so jsPath just
-        // navigates back to the output root (not to the user's CSS dir).
-        const jsPath = p.sectionSlug ? "../../" : "../";
+        if (!fs.existsSync(swatchDir)) fs.mkdirSync(swatchDir, { recursive: true });
+        const previewFile = path.join(swatchDir, "index.html");
 
         const previewHtml = previewLayoutContent
           .replace("<!-- PREVIEW_TITLE -->", p.name)
           .replace("<!-- PREVIEW_CONTENT -->", p.content)
           .replaceAll("<!-- CSS_PATH -->", cssPath)
-          .replaceAll("<!-- JS_PATH -->", jsPath)
           .replace("<!-- HEAD_EXTRAS -->", "");
 
         fs.writeFileSync(previewFile, previewHtml);

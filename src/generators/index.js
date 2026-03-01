@@ -8,6 +8,39 @@
 const fs = require('fs');
 const path = require('path');
 
+// Inline script that resolves CSS custom property values and annotates
+// .token-value elements with their computed value (e.g. "(#3b82f6)").
+// Included directly in any generated HTML fragment that uses .token-value
+// so the fragment is self-contained and doesn't depend on a shared bundle.
+const TOKEN_DISPLAY_SCRIPT = `<script>
+(function() {
+  var elements = document.querySelectorAll('.token-value');
+  if (!elements.length) return;
+  elements.forEach(function(el) {
+    var prop = el.getAttribute('data-var');
+    var computed = getComputedStyle(el).getPropertyValue(prop).trim();
+    if (computed) {
+      el.innerHTML += ' <span style="opacity:0.5;font-family:monospace;font-size:0.8em">(' + computed + ')</span>';
+    } else {
+      var temp = document.createElement('div');
+      temp.style.fontSize = '16px';
+      temp.style.lineHeight = 'var(' + prop + ')';
+      document.body.appendChild(temp);
+      var computedPx = getComputedStyle(temp).lineHeight;
+      document.body.removeChild(temp);
+      var displayValue = computedPx;
+      if (computedPx.endsWith('px')) {
+        var ratio = Math.round((parseFloat(computedPx) / 16) * 100) / 100;
+        displayValue = String(ratio);
+      }
+      if (displayValue) {
+        el.innerHTML += ' <span style="opacity:0.5;font-family:monospace;font-size:0.8em">(' + displayValue + ')</span>';
+      }
+    }
+  });
+})();
+</script>`;
+
 /**
  * Read and parse a JSON token file
  */
@@ -113,7 +146,8 @@ function generateTypography(tokensDir) {
 </style>
 <div class="type-ladder">
 ${steps}
-</div>`;
+</div>
+${TOKEN_DISPLAY_SCRIPT}`;
 }
 
 /**
@@ -233,7 +267,8 @@ function generateFonts(tokensDir) {
 
   return `<div class="font-stack">
 ${stacks}
-</div>`;
+</div>
+${TOKEN_DISPLAY_SCRIPT}`;
 }
 
 /**
@@ -294,7 +329,8 @@ ${leadings}
     color: #666;
     margin-left: 0.5rem;
   }
-</style>`;
+</style>
+${TOKEN_DISPLAY_SCRIPT}`;
 }
 
 /**
