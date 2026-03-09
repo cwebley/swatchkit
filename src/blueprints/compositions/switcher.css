@@ -16,7 +16,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--gutter, var(--space-l));
-  align-items: var(--switcher-vertical-alignment, flex-start);
+  align-items: var(--switcher-vertical-alignment, stretch);
 }
 
 /* The Flexbox Holy Albatross: subtracting 100% (the container width) from the
@@ -44,7 +44,7 @@
 
    Both are equivalent. The :has() version reads as "if .switcher has a 5th
    child, make all children full width." */
-.switcher > :nth-last-child(n+5),
-.switcher > :nth-last-child(n+5) ~ * {
+.switcher > :nth-last-child(n + 5),
+.switcher > :nth-last-child(n + 5) ~ * {
   flex-basis: 100%;
 }
