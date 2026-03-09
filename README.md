@@ -34,7 +34,7 @@ my-project/
 │   ├── main.css            # Main stylesheet (imports tokens + compositions)
 │   └── swatchkit-ui.css    # UI styles for the documentation sidebar
 ├── swatchkit/
-│   ├── _layout.html        # Layout template (you own this)
+│   ├── _swatchkit.html     # Layout template (you own this)
 │   └── tokens/             # Visual documentation for design tokens
 │       ├── colors.html
 │       ├── typography.html
@@ -183,7 +183,7 @@ The sidebar and documentation layout are styled by `css/swatchkit-ui.css`. This 
 
 ### 6. Custom Layouts
 
-When you run `swatchkit scaffold`, we create `swatchkit/_layout.html`.
+When you run `swatchkit scaffold`, we create `swatchkit/_swatchkit.html`.
 **You own this file.**
 
 - Link to your own stylesheets.
@@ -243,8 +243,8 @@ SwatchKit includes sensible defaults in `css/global/variables.css` and `css/glob
 | `css/global/variables.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/global/elements.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/tokens.css` | 🚫 **NO** | Overwritten by every build and `swatchkit scaffold`. |
-| `swatchkit/_layout.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
-| `swatchkit/_preview.html`| ✅ **YES** | Same as `_layout.html` — safe unless you run `scaffold --force`. |
+| `swatchkit/_swatchkit.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
+| `swatchkit/_preview.html`| ✅ **YES** | Same as `_swatchkit.html` — safe unless you run `scaffold --force`. |
 | `swatchkit/tokens/*.html`| 🚫 **NO** | Overwritten by `swatchkit build` (visual previews). |
 
 ## CLI Reference

@@ -166,10 +166,10 @@ function resolveSettings(cliOptions, fileConfig) {
     cssPath,
     fileConfig, // Expose config to init
     // Internal layout templates (relative to this script)
-    internalLayout: path.join(__dirname, "src/layout.html"),
+    internalLayout: path.join(__dirname, "src/swatchkit.html"),
     internalPreviewLayout: path.join(__dirname, "src/preview-layout.html"),
     // Project specific layout overrides
-    projectLayout: path.join(swatchkitDir, "_layout.html"),
+    projectLayout: path.join(swatchkitDir, "_swatchkit.html"),
     projectPreviewLayout: path.join(swatchkitDir, "_preview.html"),
 
     // Derived paths
@@ -596,7 +596,7 @@ function scanSwatches(dir, destDir, exclude = []) {
     // Skip excluded items
     if (exclude.some((pattern) => matchesGlob(item, pattern))) return;
 
-    // Skip _layout.html or hidden files
+    // Skip _swatchkit.html or hidden files
     if (item.startsWith("_") || item.startsWith(".")) return;
 
     const itemPath = path.join(dir, item);

@@ -1,7 +1,7 @@
 /*
   SWITCHER
   Lays out items horizontally until there is insufficient space, then stacks them.
-  Optimized for 3 items.
+  Switches to a full vertical stack when there are 5 or more items.
 
   Credit: Adapted from Every Layout (The Switcher)
   Docs:   https://every-layout.dev/layouts/switcher/
@@ -26,7 +26,19 @@
   );
 }
 
-/* Max 3 items, so anything greater than 3 is full width */
-.switcher > :nth-child(n + 4) {
+/* Quantity query: if there are 5 or more items, make ALL of them full width.
+   This prevents the awkward state where 4 items are horizontal and a lone 5th
+   wraps onto its own row. Instead, everything stacks cleanly.
+
+   :nth-last-child(n+5) selects any item that has 4+ items after it — meaning
+   we're in a group of 5+. The sibling combinator (~) then catches everything else.
+
+   This can also be written using :has():
+   .switcher:has(> :nth-child(5)) > * { flex-basis: 100%; }
+
+   Both are equivalent. The :has() version reads as "if .switcher has a 5th
+   child, make all children full width." */
+.switcher > :nth-last-child(n+5),
+.switcher > :nth-last-child(n+5) ~ * {
   flex-basis: 100%;
 }
