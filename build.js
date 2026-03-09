@@ -154,7 +154,8 @@ function resolveSettings(cliOptions, fileConfig) {
   // Relative path from SwatchKit HTML output to the user's CSS directory.
   // Only used when cssCopy is false. Derived from cssDir basename by default
   // (e.g., cssDir: "./src/css" -> "../css/", cssDir: "./styles" -> "../styles/").
-  const cssPath = fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
+  const cssPath =
+    fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
 
   return {
     swatchkitDir,
@@ -249,12 +250,14 @@ function buildInitManifest(settings) {
   for (const section of ["utilities", "compositions"]) {
     const sectionSrc = path.join(templatesDir, section);
     if (!fs.existsSync(sectionSrc)) continue;
-    const folders = fs.readdirSync(sectionSrc).filter(f =>
-      fs.statSync(path.join(sectionSrc, f)).isDirectory()
-    );
+    const folders = fs
+      .readdirSync(sectionSrc)
+      .filter((f) => fs.statSync(path.join(sectionSrc, f)).isDirectory());
     for (const folder of folders) {
       const folderSrc = path.join(sectionSrc, folder);
-      const files = fs.readdirSync(folderSrc).filter(f => f.endsWith(".html"));
+      const files = fs
+        .readdirSync(folderSrc)
+        .filter((f) => f.endsWith(".html"));
       for (const file of files) {
         manifest.push({
           src: path.join(folderSrc, file),
@@ -413,10 +416,10 @@ module.exports = {
 
 function runNew(cliOptions) {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, 'swatchkit.config.js');
+  const configPath = path.join(cwd, "swatchkit.config.js");
 
   if (fs.existsSync(configPath) && !cliOptions.force) {
-    console.log('[SwatchKit] swatchkit.config.js already exists.');
+    console.log("[SwatchKit] swatchkit.config.js already exists.");
     console.log('  Run "swatchkit new --force" to overwrite it.');
     return;
   }
@@ -425,24 +428,33 @@ function runNew(cliOptions) {
   if (cliOptions.cssDir) {
     const content = generateConfig(cliOptions.cssDir);
     fs.writeFileSync(configPath, content);
-    console.log(`+ Created: swatchkit.config.js (cssDir: ${cliOptions.cssDir})`);
+    console.log(
+      `+ Created: swatchkit.config.js (cssDir: ${cliOptions.cssDir})`,
+    );
     console.log('  Next: run "swatchkit scaffold" to set up your project.');
     return;
   }
 
   // Interactive mode: prompt for CSS directory
-  const readline = require('readline');
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const readline = require("readline");
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  rl.question('Where does your CSS live? [src/css]: ', (answer) => {
+  rl.question("Where does your CSS live? [src/css]: ", (answer) => {
     rl.close();
-    const cssDir = answer.trim() ? `./${answer.trim().replace(/^\.\//, '')}` : './src/css';
+    const cssDir = answer.trim()
+      ? `./${answer.trim().replace(/^\.\//, "")}`
+      : "./src/css";
     const content = generateConfig(cssDir);
 
     if (fs.existsSync(configPath) && cliOptions.force) {
       const backupPath = getBackupPath(configPath);
       fs.copyFileSync(configPath, backupPath);
-      console.log(`  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`);
+      console.log(
+        `  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`,
+      );
     }
 
     fs.writeFileSync(configPath, content);
@@ -505,7 +517,9 @@ function runInit(settings, options) {
       if (exists && options.force && !swatchkitOwned.includes(entry.dest)) {
         const backupPath = getBackupPath(entry.dest);
         fs.copyFileSync(entry.dest, backupPath);
-        console.log(`  ~ Backed up: ${path.relative(cwd, entry.dest)} → ${path.basename(backupPath)}`);
+        console.log(
+          `  ~ Backed up: ${path.relative(cwd, entry.dest)} → ${path.basename(backupPath)}`,
+        );
       }
 
       let content = fs.readFileSync(entry.src, "utf-8");
@@ -649,11 +663,11 @@ function validateOutDir(outDir) {
   const relative = path.relative(cwd, outDir);
 
   if (
-    !relative ||                          // outDir === cwd
-    relative === '..' ||                  // above cwd
-    relative.startsWith('../') ||         // above cwd
-    path.isAbsolute(relative) ||          // different drive/root
-    relative.split(path.sep).length < 2   // top-level dir like "dist" with no subfolder
+    !relative || // outDir === cwd
+    relative === ".." || // above cwd
+    relative.startsWith("../") || // above cwd
+    path.isAbsolute(relative) || // different drive/root
+    relative.split(path.sep).length < 2 // top-level dir like "dist" with no subfolder
   ) {
     console.error(
       `[SwatchKit] Refusing to clean outDir "${outDir}" — must be a subdirectory at least 2 levels deep (e.g., dist/swatchkit).`,
@@ -692,11 +706,17 @@ function build(settings) {
   // 2.5 Process Tokens
   console.log("Reading JSON tokens (tokens/*.json)...");
   // Output tokens.css to css/global/tokens.css
-  const tokensContext = processTokens(settings.tokensDir, path.join(settings.cssDir, "global"));
-  
+  const tokensContext = processTokens(
+    settings.tokensDir,
+    path.join(settings.cssDir, "global"),
+  );
+
   // Generate Utilities to css/utilities/tokens.css
   if (tokensContext) {
-    generateTokenUtilities(tokensContext, path.join(settings.cssDir, "utilities"));
+    generateTokenUtilities(
+      tokensContext,
+      path.join(settings.cssDir, "utilities"),
+    );
   }
 
   // 2.6 Generate token display HTML from JSON
@@ -704,7 +724,9 @@ function build(settings) {
   if (fs.existsSync(tokensUiDir)) {
     const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir);
     if (generated > 0) {
-      console.log(`Generated ${generated} token documentation files (swatchkit/tokens/*.html)`);
+      console.log(
+        `Generated ${generated} token documentation files (swatchkit/tokens/*.html)`,
+      );
     }
   }
 
@@ -713,7 +735,9 @@ function build(settings) {
     console.log("Copying static CSS assets (css/*)...");
     copyDir(settings.cssDir, settings.distCssDir, true);
   } else if (!settings.cssCopy) {
-    console.log(`Skipping CSS copy (cssCopy: false). CSS referenced at: ${settings.cssPath}`);
+    console.log(
+      `Skipping CSS copy (cssCopy: false). CSS referenced at: ${settings.cssPath}`,
+    );
   }
 
   // 4. Read swatches
@@ -777,7 +801,13 @@ function build(settings) {
           const swatchDestDir = path.join(settings.distPreviewDir, name);
           copySwatchAssets(itemPath, swatchDestDir);
 
-          rootSwatches.push({ name, id: name, content, description, sectionSlug: null });
+          rootSwatches.push({
+            name,
+            id: name,
+            content,
+            description,
+            sectionSlug: null,
+          });
         }
       }
     });
@@ -804,7 +834,7 @@ function build(settings) {
 
   sortedKeys.forEach((section) => {
     const swatches = sections[section];
-    sidebarLinks += `<h3>${section}</h3>\n`;
+    sidebarLinks += `<h2>${section}</h2>\n`;
     sidebarLinks += `<ul role="list">\n`;
     sidebarLinks += swatches
       .map((p) => `  <li><a href="#${p.id}">${p.name}</a></li>`)
@@ -832,7 +862,7 @@ function build(settings) {
         return `
       <section id="${p.id}" class="region flow">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
-        ${p.description ? `<div class="swatch-description">${p.description}</div>` : ''}
+        ${p.description ? `<div class="swatch-description">${p.description}</div>` : ""}
         <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: vertical; overflow: auto;"></iframe>
         <div class="swatchkit-preview-link"><a href="${previewLink}">View full screen</a></div>
         <details>
@@ -878,7 +908,8 @@ function build(settings) {
           cssPath = "../../" + settings.cssPath; // preview/id/index.html -> ../../ + cssPath
         }
 
-        if (!fs.existsSync(swatchDir)) fs.mkdirSync(swatchDir, { recursive: true });
+        if (!fs.existsSync(swatchDir))
+          fs.mkdirSync(swatchDir, { recursive: true });
         const previewFile = path.join(swatchDir, "index.html");
 
         const previewHtml = previewLayoutContent
@@ -933,7 +964,9 @@ function watch(settings) {
   console.log("[SwatchKit] Watch mode enabled.");
   console.log("Watching for changes in:");
   sourcePaths.forEach((p) => console.log(`  - ${p}`));
-  console.log(`  Polling: ${settings.outDir} (rebuild if deleted by external tools)`);
+  console.log(
+    `  Polling: ${settings.outDir} (rebuild if deleted by external tools)`,
+  );
 
   let buildTimeout;
   let isRebuilding = false;
@@ -962,7 +995,7 @@ function watch(settings) {
   const sourceWatcher = chokidar.watch(sourcePaths, {
     ignored: [
       /(^|[\/\\])\../, // ignore dotfiles
-      tokensUiDir,      // ignore build-generated token HTML
+      tokensUiDir, // ignore build-generated token HTML
     ],
     persistent: true,
     ignoreInitial: true,

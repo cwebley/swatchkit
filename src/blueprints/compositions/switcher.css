@@ -19,6 +19,12 @@
   align-items: var(--switcher-vertical-alignment, flex-start);
 }
 
+/* The Flexbox Holy Albatross: subtracting 100% (the container width) from the
+   threshold produces either a large negative or large positive number when
+   multiplied by 999. A negative flex-basis is invalid and treated as 0, so
+   flex-grow takes over and items share the row. A positive flex-basis forces
+   each item to its own row. The result: a hard switch between horizontal and
+   vertical with no in-between states, and no media queries needed. */
 .switcher > * {
   flex-grow: 1;
   flex-basis: calc(
@@ -27,8 +33,8 @@
 }
 
 /* Quantity query: if there are 5 or more items, make ALL of them full width.
-   This prevents the awkward state where 4 items are horizontal and a lone 5th
-   wraps onto its own row. Instead, everything stacks cleanly.
+   Above the container threshold, all items lay out horizontally — but with too
+   many items they'd become too narrow. This forces a clean vertical stack instead.
 
    :nth-last-child(n+5) selects any item that has 4+ items after it — meaning
    we're in a group of 5+. The sibling combinator (~) then catches everything else.
