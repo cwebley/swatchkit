@@ -234,6 +234,12 @@ SwatchKit includes sensible defaults in `css/global/variables.css` and `css/glob
 *   Variable references use the default token names from `tokens/*.json`. If you rename any tokens, update the `var()` references in these files to match.
 *   Both files are yours to edit — add your own variables and element styles freely.
 
+### Upgrading an existing project
+
+Run `swatchkit scaffold` to see a report of what's new or changed versus the latest blueprints. Run `swatchkit scaffold --force` to apply updates — modified files are backed up to `.bak` before being overwritten, so your changes are not lost.
+
+**Note on the `_layout.html` → `_swatchkit.html` rename:** if you had a customized `_layout.html`, scaffold will create a new `_swatchkit.html` from the latest template but will not touch your old `_layout.html`. Copy your customizations from `_layout.html` into `_swatchkit.html` manually, then delete the old file.
+
 ### What is Safe to Edit?
 
 | File / Folder | Safe to Edit? | Notes |
@@ -243,6 +249,8 @@ SwatchKit includes sensible defaults in `css/global/variables.css` and `css/glob
 | `css/global/variables.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/global/elements.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/tokens.css` | 🚫 **NO** | Overwritten by every build and `swatchkit scaffold`. |
+| `css/swatchkit-ui.css` | ✅ **YES** | Styles for the SwatchKit docs UI. Safe to customize. |
+| `css/swatchkit-preview.css` | ✅ **YES** | Styles for swatch preview pages (e.g. the grid background). Safe to customize. |
 | `swatchkit/_swatchkit.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
 | `swatchkit/_preview.html`| ✅ **YES** | Same as `_swatchkit.html` — safe unless you run `scaffold --force`. |
 | `swatchkit/tokens/*.html`| 🚫 **NO** | Overwritten by `swatchkit build` (visual previews). |

@@ -1,17 +1,13 @@
 /* SwatchKit UI Styles */
 
 :root {
-  --sidebar-target-width: 20rem;
+  --sidebar-target-width: 25rem;
   --sidebar-content-min-width: 66%;
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-}
-
-main {
-  /* TODO: consider a utility class here */
-  padding-block-start: var(--space-l);
 }
 
 .nav-container {
@@ -25,53 +21,4 @@ main {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-}
-
-.swatchkit-nav h2 {
-  font-size: var(--text-size-1, 1.25rem);
-  font-weight: var(--font-weight-bold, 700);
-  color: var(--color-dark);
-}
-
-.swatchkit-nav a {
-  display: block;
-  text-decoration: none;
-  color: var(--color-dark-glare, #333);
-  padding-block: var(--space-xs, 0.5rem);
-}
-
-.swatchkit-nav a:hover {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
-/* Pattern Preview Blocks */
-.swatchkit-pattern {
-  margin-bottom: var(--space-2xl);
-  border-bottom: 1px solid var(--color-mid);
-  padding-bottom: var(--space-l);
-}
-
-.swatchkit-pattern h2 {
-  margin-top: 0;
-  font-size: var(--text-size-2, 1.5rem);
-  color: var(--color-dark);
-}
-
-.swatchkit-preview {
-  border: 1px solid var(--color-mid);
-  padding: var(--space-l);
-  border-radius: 4px;
-  background: var(--color-light);
-  margin-bottom: var(--space-m);
-}
-
-.swatchkit-code {
-  background: var(--color-dark);
-  color: var(--color-light);
-  padding: var(--space-m);
-  border-radius: 4px;
-  overflow-x: auto;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.875rem;
 }

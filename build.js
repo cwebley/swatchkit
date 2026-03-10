@@ -280,6 +280,12 @@ function buildInitManifest(settings) {
     dest: path.join(settings.cssDir, "swatchkit-ui.css"),
   });
 
+  // SwatchKit preview styles (loaded only by preview pages)
+  manifest.push({
+    src: path.join(blueprintsDir, "swatchkit-preview.css"),
+    dest: path.join(settings.cssDir, "swatchkit-preview.css"),
+  });
+
   // CSS folder blueprints (global, compositions, utilities)
   const cssFolders = ["global", "compositions", "utilities"];
   for (const folder of cssFolders) {
@@ -863,7 +869,7 @@ function build(settings) {
       <section id="${p.id}" class="region flow">
         <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
         ${p.description ? `<div class="swatch-description">${p.description}</div>` : ""}
-        <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: vertical; overflow: auto;"></iframe>
+        <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: auto; overflow: auto;"></iframe>
         <div class="swatchkit-preview-link"><a href="${previewLink}">View full screen</a></div>
         <details>
           <summary>View source</summary>
