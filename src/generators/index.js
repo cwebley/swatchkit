@@ -80,7 +80,22 @@ function generateColors(tokensDir) {
       </tr>`;
   }).join('\n');
 
-  return `<style>
+  return `<table class="color-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Hex code</th>
+      <th>Custom Property</th>
+      <th>Color Utility Class</th>
+      <th>BG Utility Class</th>
+    </tr>
+  </thead>
+  <tbody>
+${rows}
+  </tbody>
+</table>
+
+<style>
   .color-table {
     width: 100%;
     border-collapse: collapse;
@@ -100,22 +115,7 @@ function generateColors(tokensDir) {
   .color-table code {
     font-family: monospace;
   }
-</style>
-
-<table class="color-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Hex code</th>
-      <th>Custom Property</th>
-      <th>Color Utility Class</th>
-      <th>BG Utility Class</th>
-    </tr>
-  </thead>
-  <tbody>
-${rows}
-  </tbody>
-</table>`;
+</style>`;
 }
 
 /**
@@ -130,7 +130,11 @@ function generateTypography(tokensDir) {
     return `  <div style="font-size: var(${varName})">${item.name} <span class="token-value" data-var="${varName}"></span></div>`;
   }).join('\n');
 
-  return `<style>
+  return `<div class="type-ladder">
+${steps}
+</div>
+
+<style>
   .type-ladder > * {
     margin-bottom: 1.5rem;
     line-height: 1.2;
@@ -144,9 +148,6 @@ function generateTypography(tokensDir) {
     font-family: monospace;
   }
 </style>
-<div class="type-ladder">
-${steps}
-</div>
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
@@ -185,37 +186,7 @@ function generateSpacing(tokensDir) {
       </tr>`;
   }).join('\n');
 
-  return `<style>
-  .spacing-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    margin-bottom: 2rem;
-  }
-  .spacing-table th,
-  .spacing-table td {
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #ddd;
-    vertical-align: middle;
-  }
-  .spacing-table th {
-    font-weight: bold;
-    background: #f5f5f5;
-  }
-  .spacing-table code {
-    font-family: monospace;
-  }
-  .spacing-swatch {
-    background: var(--color-primary, #666);
-    min-height: 4px;
-    width: 100%;
-    min-width: 4px;
-    border-radius: 2px;
-  }
-</style>
-
-<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Scale</h2>
+  return `<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Scale</h2>
 <table class="spacing-table">
   <thead>
     <tr>
@@ -247,7 +218,37 @@ ${scaleRows}
   <tbody>
 ${usageRows}
   </tbody>
-</table>`;
+</table>
+
+<style>
+  .spacing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+  }
+  .spacing-table th,
+  .spacing-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #ddd;
+    vertical-align: middle;
+  }
+  .spacing-table th {
+    font-weight: bold;
+    background: #f5f5f5;
+  }
+  .spacing-table code {
+    font-family: monospace;
+  }
+  .spacing-swatch {
+    background: var(--color-primary, #666);
+    min-height: 4px;
+    width: 100%;
+    min-width: 4px;
+    border-radius: 2px;
+  }
+</style>`;
 }
 
 /**
@@ -355,7 +356,11 @@ function generateViewports(tokensDir) {
   </div>`;
   }).join('\n');
 
-  return `<style>
+  return `<div class="viewport-list">
+${items}
+</div>
+
+<style>
   .viewport-list {
     display: flex;
     flex-direction: column;
@@ -388,10 +393,7 @@ function generateViewports(tokensDir) {
     margin-left: auto;
     padding-left: 2rem;
   }
-</style>
-<div class="viewport-list">
-${items}
-</div>`;
+</style>`;
 }
 
 /**
