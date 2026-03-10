@@ -127,7 +127,17 @@ function generateTypography(tokensDir) {
 
   const steps = data.items.map(item => {
     const varName = `--${item.name}`;
-    return `  <div style="font-size: var(${varName})">${item.name} <span class="token-value" data-var="${varName}"></span></div>`;
+    const min = item.min !== undefined ? `${item.min}px` : '—';
+    const max = item.max !== undefined ? `${item.max}px` : '—';
+    return `  <div class="type-step">
+    <div class="type-sample" style="font-size: var(${varName})">${item.name}</div>
+    <div class="type-meta">
+      <code>${varName}</code>
+      <code>.font-size:${item.name}</code>
+      <span class="token-value" data-var="${varName}"></span>
+      <span>${min} / ${max}</span>
+    </div>
+  </div>`;
   }).join('\n');
 
   return `<div class="type-ladder">
@@ -135,17 +145,28 @@ ${steps}
 </div>
 
 <style>
-  .type-ladder > * {
-    margin-bottom: 1.5rem;
+  .type-ladder {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .type-step {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1.5rem;
+  }
+  .type-sample {
     line-height: 1.2;
   }
-  .type-ladder .token-value {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: normal;
-    color: #666;
-    margin-top: 0.25rem;
+  .type-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    font-size: 0.8rem;
     font-family: monospace;
+    color: #666;
   }
 </style>
 ${TOKEN_DISPLAY_SCRIPT}`;
@@ -281,14 +302,45 @@ function generateTextWeights(tokensDir) {
 
   const weights = data.items.map(item => {
     const varName = `--${item.name}`;
-    return `  <div style="font-weight: var(${varName})">
-    ${item.name} (${item.value}) - The quick brown fox jumps over the lazy dog.
+    return `  <div class="weight-step">
+    <div class="weight-sample" style="font-weight: var(${varName})">The quick brown fox jumps over the lazy dog.</div>
+    <div class="weight-meta">
+      <code>${varName}</code>
+      <code>.font-weight:${item.name}</code>
+      <span>${item.value}</span>
+    </div>
   </div>`;
   }).join('\n');
 
-  return `<div style="font-family: sans-serif; display: grid; gap: 1rem;">
+  return `<div class="weight-ladder">
 ${weights}
-</div>`;
+</div>
+
+<style>
+  .weight-ladder {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .weight-step {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1.5rem;
+  }
+  .weight-sample {
+    font-size: 1.25rem;
+  }
+  .weight-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+    color: #666;
+  }
+</style>`;
 }
 
 /**
@@ -304,8 +356,8 @@ function generateTextLeading(tokensDir) {
     const varName = `--${item.name}`;
     return `  <div style="line-height: var(${varName})">
     <div class="meta">
-      <strong>${item.name}</strong>
-      <code>var(${varName})</code>
+      <code>${varName}</code>
+      <code>.line-height:${item.name}</code>
       <span class="token-value" data-var="${varName}"></span>
     </div>
     <p>${loremText}</p>
