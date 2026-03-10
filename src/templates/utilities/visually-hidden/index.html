@@ -1,7 +1,21 @@
-<div style="display: flex; align-items: center; gap: 1rem; padding: 1rem;">
+<div class="demo-vh-wrapper">
   <button>
     <span class="visually-hidden">Open menu</span>
     ☰
   </button>
-  <p style="margin: 0; font-size: 0.9rem; color: var(--color-dark-glare);">This button has a visually hidden label. Inspect or use a screen reader to see it.</p>
+  <p class="demo-vh-note">This button has a visually hidden label. Inspect or use a screen reader to see it.</p>
 </div>
+
+<style>
+  .demo-vh-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .demo-vh-note {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--color-dark-glare);
+  }
+</style>

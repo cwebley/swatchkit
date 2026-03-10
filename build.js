@@ -220,16 +220,6 @@ function buildInitManifest(settings) {
     });
   }
 
-  // Template files (swatchkit/tokens/)
-  const templateFiles = ["prose.html"];
-  for (const file of templateFiles) {
-    manifest.push({
-      src: path.join(templatesDir, file),
-      dest: path.join(settings.swatchkitDir, "tokens", file),
-      transform: (content) => content.trim(),
-    });
-  }
-
   // Hello swatch (default example in swatchkit/swatches/hello/)
   for (const file of ["index.html", "README.md"]) {
     manifest.push({

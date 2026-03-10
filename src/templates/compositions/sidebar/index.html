@@ -1,4 +1,20 @@
-<div class="sidebar" style="outline: 1px dashed var(--color-mid);">
-  <div style="background: var(--color-primary); padding: var(--space-m); color: var(--color-light);">Sidebar</div>
-  <div style="background: var(--color-light); padding: var(--space-m); outline: 1px dashed var(--color-mid);">Main content area</div>
+<div class="sidebar demo-sidebar">
+  <div class="demo-sidebar-panel">Sidebar</div>
+  <div class="demo-main-panel">Main content area</div>
 </div>
+
+<style>
+  .demo-sidebar {
+    outline: 1px dashed var(--color-mid);
+  }
+  .demo-sidebar-panel {
+    background: var(--color-primary);
+    padding: var(--space-m);
+    color: var(--color-light);
+  }
+  .demo-main-panel {
+    background: var(--color-light);
+    padding: var(--space-m);
+    outline: 1px dashed var(--color-mid);
+  }
+</style>

@@ -1,29 +1,16 @@
-<div class="switcher" style="outline: 1px dashed var(--color-mid)">
-  <div
-    style="
-      background: var(--color-light);
-      padding: var(--space-m);
-      outline: 1px dashed var(--color-mid);
-    "
-  >
-    First panel
-  </div>
-  <div
-    style="
-      background: var(--color-light);
-      padding: var(--space-m);
-      outline: 1px dashed var(--color-mid);
-    "
-  >
-    First panel
-  </div>
-  <div
-    style="
-      background: var(--color-light);
-      padding: var(--space-m);
-      outline: 1px dashed var(--color-mid);
-    "
-  >
-    Second panel
-  </div>
+<div class="switcher">
+  <div class="demo-panel">First panel</div>
+  <div class="demo-panel">Second panel</div>
+  <div class="demo-panel">Third panel</div>
 </div>
+
+<style>
+  .switcher {
+    outline: 1px dashed var(--color-mid);
+  }
+  .demo-panel {
+    background: var(--color-light);
+    padding: var(--space-m);
+    outline: 1px dashed var(--color-mid);
+  }
+</style>

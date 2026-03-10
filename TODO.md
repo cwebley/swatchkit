@@ -10,8 +10,10 @@
 - **CSS-Native Clamping:** Evaluate removing JS clamp generator logic and handling it entirely in CSS `clamp()`.
   - _Benefit:_ Easier updates; changing a single CSS variable cascades instantly without a rebuild/watcher.
   - remove the source of truth for tokens being the json file?
-  - the json files are still the source of truth for displaying the tokens in the ui. so maybe the json is the best strat. ## Additions
-- should we wire up an example swatch?
+  - the json files are still the source of truth for displaying the tokens in the ui. so maybe the json is the best strat.
+
+## Additions
+
 - grid composition following lesson 2-6 in complete css.
 - i dont really like variables like --cluster-horizontal-alignment and --cluster-vertical-alignment.
   - seems like --cluster-justify-content would be better. then i at least know the possible values.
@@ -23,5 +25,4 @@
 
 ## UI
 
-- fix swatchkit ui inline styling to use style tags instead for all examples.
 - scroll to top button

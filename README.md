@@ -23,28 +23,35 @@ This will create:
 
 ```
 my-project/
-├── tokens/                 # Design token definitions (you edit these)
+├── tokens/                      # Design token definitions (you edit these)
 │   ├── colors.json
 │   ├── fonts.json
 │   ├── spacing.json
 │   └── ...
 ├── css/
-│   ├── compositions/       # Layout primitives (flow, sidebar, etc.)
-│   ├── tokens.css          # Generated from tokens/*.json
-│   ├── main.css            # Main stylesheet (imports tokens + compositions)
-│   └── swatchkit-ui.css    # UI styles for the documentation sidebar
+│   ├── global/
+│   │   └── tokens.css           # Generated from tokens/*.json (do not edit)
+│   ├── compositions/            # Layout primitives (flow, sidebar, etc.)
+│   ├── swatches/                # Component/swatch stylesheets
+│   ├── main.css                 # Main stylesheet (you own this)
+│   ├── swatchkit-ui.css         # UI styles for the documentation sidebar
+│   └── swatchkit-preview.css    # Styles for swatch preview pages
 ├── swatchkit/
-│   ├── _swatchkit.html     # Layout template (you own this)
-│   └── tokens/             # Visual documentation for design tokens
-│       ├── colors.html
-│       ├── typography.html
-│       └── ...
+│   ├── _swatchkit.html          # Layout template (you own this)
+│   ├── tokens/                  # Visual documentation for design tokens
+│   │   ├── colors.html
+│   │   ├── typography.html
+│   │   └── ...
+│   └── swatches/                # Your UI components
+│       └── hello/               # Example swatch
+│           └── index.html
 └── dist/
-    └── swatchkit/          # Built pattern library
+    └── swatchkit/               # Built pattern library
         ├── index.html
-        ├── js/
-        │   └── swatches.js # Bundled swatch scripts
-        └── preview/        # Full-screen preview pages
+        └── preview/             # Full-screen preview pages
+            └── swatches/
+                └── hello/
+                    └── index.html
 ```
 
 ---
@@ -79,22 +86,28 @@ swatchkit/
 ├── tokens/              # Section: "Design Tokens" (visual previews)
 │   ├── colors.html
 │   └── typography.html
-├── components/          # Section: "Components"
-│   ├── button.html
+├── swatches/            # Section: "Swatches" (default for components)
+│   ├── button/
+│   │   └── index.html
 │   └── card/
-│       └── index.html
+│       ├── index.html
+│       ├── styles.css   # Sibling assets are copied alongside
+│       └── script.js
 ├── compositions/        # Section: "Compositions"
-│   └── sidebar.html
+│   └── sidebar/
+│       └── index.html
 └── utilities/           # Section: "Utilities"
-    └── flow.html
+    └── flow/
+        └── index.html
 ```
 
-- **Files at root:** Go to the "Patterns" section.
 - **Subfolders:** Create a new section (e.g. `utilities/` -> "Utilities").
+- **Swatch folders:** Each swatch is a folder with an `index.html`. Files next to `index.html` (CSS, JS, images) are copied into the build output as sibling assets, so your `index.html` can reference them with relative paths.
+- **Underscore prefix:** Any file or folder prefixed with `_` is ignored at every level (e.g. `_wip/`, `_notes.md`).
 
 ### 2. Design Token Engine
 
-SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, and SwatchKit auto-generates `css/tokens.css`.
+SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, and SwatchKit auto-generates `css/global/tokens.css` and `css/utilities/tokens.css`.
 
 **Supported Tokens:**
 
@@ -106,7 +119,7 @@ SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, a
 
 Visual documentation patterns for these tokens live in `swatchkit/tokens/` and are created during scaffold.
 
-### 3. Intelligent Fluid Logic (New!)
+### 3. Intelligent Fluid Logic
 
 SwatchKit can auto-calculate fluid typography and spacing scales.
 
@@ -164,16 +177,15 @@ You can mix modular scales with manual overrides.
 
 ### 5. CSS Workflow
 
-SwatchKit generates `css/tokens.css` with your design tokens. Your `css/main.css` imports this file along with layout primitives:
+SwatchKit generates `css/global/tokens.css` with your design tokens. Your `css/main.css` imports this file along with layout primitives:
 
 ```css
-@import 'tokens.css';
-@import 'compositions/index.css';
+@import "global/index.css";
+@import "compositions/index.css";
+@import "utilities/index.css";
+@import "swatches/index.css";
 
-body {
-  font-family: var(--font-base);
-  color: var(--color-dark);
-}
+/* Your app styles below */
 ```
 
 The pattern library uses **your stylesheet** (`main.css`), so components render exactly as they will in your app.
@@ -191,16 +203,6 @@ When you run `swatchkit scaffold`, we create `swatchkit/_swatchkit.html`.
 - Change the HTML structure, logo, or classes.
 
 SwatchKit injects content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`, and `<!-- HEAD_EXTRAS -->` placeholders.
-
-### 7. JavaScript Bundling
-
-If your component needs client-side JS:
-
-1. Create a folder: `swatchkit/carousel/`.
-2. Add `index.html` (Markup).
-3. Add `script.js` (Logic).
-
-SwatchKit automatically bundles your JS files, wraps them in a safety scope (IIFE), and injects them into the final build.
 
 ## How It Works
 
@@ -223,10 +225,10 @@ Files created:
 Compiles your documentation site into `dist/swatchkit/`.
 
 1.  **Reads JSON Tokens**: Scans `tokens/*.json` and calculates fluid typography/spacing.
-2.  **Generates CSS**: Creates `css/tokens.css`. **Do not edit this file**; it is overwritten every build.
+2.  **Generates CSS**: Creates `css/global/tokens.css` and `css/utilities/tokens.css`. **Do not edit these files**; they are overwritten every build.
 3.  **Copies Assets**: Copies your `css/` folder (including your manually edited `main.css`, `global/variables.css`, and `global/elements.css`) to the output folder.
-4.  **Scans Patterns**: Finds all HTML files in `swatchkit/` and stitches them into the documentation site.
-5.  **Bundles JavaScript**: Collects any `.js` files from swatch folders (e.g., `swatchkit/carousel/script.js`) and section directories into a single `js/swatches.js` bundle. The default token display script (`swatchkit/tokens/script.js`) is included here — it shows computed CSS values alongside token documentation.
+4.  **Scans Patterns**: Finds all HTML files in `swatchkit/` and stitches them into the documentation site. Each swatch folder becomes a directory in the output with its own `index.html` and any sibling assets (CSS, JS, images) copied alongside.
+5.  **Generates Preview Pages**: Creates full-screen preview pages at `preview/{section}/{id}/index.html` so each swatch can be viewed in isolation.
 
 ### Global Styles & Variables
 SwatchKit includes sensible defaults in `css/global/variables.css` and `css/global/elements.css`.
@@ -248,7 +250,8 @@ Run `swatchkit scaffold` to see a report of what's new or changed versus the lat
 | `css/main.css` | ✅ **YES** | Your entry point. Safe. |
 | `css/global/variables.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
 | `css/global/elements.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
-| `css/tokens.css` | 🚫 **NO** | Overwritten by every build and `swatchkit scaffold`. |
+| `css/global/tokens.css` | 🚫 **NO** | Overwritten by every build. |
+| `css/utilities/tokens.css` | 🚫 **NO** | Overwritten by every build. |
 | `css/swatchkit-ui.css` | ✅ **YES** | Styles for the SwatchKit docs UI. Safe to customize. |
 | `css/swatchkit-preview.css` | ✅ **YES** | Styles for swatch preview pages (e.g. the grid background). Safe to customize. |
 | `swatchkit/_swatchkit.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
@@ -337,7 +340,8 @@ module.exports = {
 dist/
 ├── css/                    # Your build tool puts CSS here
 │   ├── main.css
-│   └── tokens.css
+│   └── global/
+│       └── tokens.css
 ├── index.html              # Your project
 └── swatchkit/
     └── index.html          # References ../css/main.css
@@ -374,7 +378,8 @@ my-project/
 └── swatchkit-dist/         # Self-contained, serve locally during dev
     ├── css/
     │   ├── main.css
-    │   └── tokens.css
+    │   └── global/
+    │       └── tokens.css
     └── index.html
 ```
 
