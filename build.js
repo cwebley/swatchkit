@@ -107,6 +107,37 @@ function toTitleCase(str) {
   return str.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+const defaultRenderers = {
+  renderSidebarSection: ({ category, categorySlug, items }) => {
+    return `<h2>${category}</h2>
+<ul role="list">
+${items.map(p => `  <li><a href="#${p.slug}">${p.name}</a></li>`).join("\n")}
+</ul>`;
+  },
+
+  renderSwatchSection: ({
+    slug,
+    name,
+    category,
+    categorySlug,
+    description,
+    previewHref,
+    escapedContent,
+  }) => {
+    return `
+<section id="${slug}" class="region flow">
+  <h2>${name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${category})</small></h2>
+  ${description ? `<div class="swatch-description">${description}</div>` : ""}
+  <iframe src="${previewHref}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: auto; overflow: auto;"></iframe>
+  <a href="${previewHref}">View full screen</a>
+  <details>
+    <summary>View source</summary>
+    <pre><code>${escapedContent}</code></pre>
+  </details>
+</section>`;
+  },
+};
+
 // --- 3. Smart Defaults & Path Resolution ---
 function resolveSettings(cliOptions, fileConfig) {
   const cwd = process.cwd();
@@ -157,6 +188,12 @@ function resolveSettings(cliOptions, fileConfig) {
   const cssPath =
     fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
 
+  // Render callbacks - merge user config with defaults
+  const renderSidebarSection =
+    fileConfig.renderSidebarSection || defaultRenderers.renderSidebarSection;
+  const renderSwatchSection =
+    fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
+
   return {
     swatchkitDir,
     outDir,
@@ -180,6 +217,9 @@ function resolveSettings(cliOptions, fileConfig) {
     outputFile: path.join(outDir, "index.html"),
     tokensCssFile: path.join(cssDir, "global", "tokens.css"),
     mainCssFile: path.join(cssDir, "main.css"),
+    // Render callbacks
+    renderSidebarSection,
+    renderSwatchSection,
   };
 }
 
@@ -406,6 +446,11 @@ module.exports = {
 
   // Files or folders to exclude from the pattern library (supports globs).
   // exclude: [],
+
+  // Render callbacks for customizing generated markup.
+  // If omitted, SwatchKit uses its default rendering.
+  // renderSidebarSection: ({ category, categorySlug, items }) => string,
+  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
 };
 `;
 }
@@ -612,15 +657,15 @@ function scanSwatches(dir, destDir, exclude = []) {
     const itemPath = path.join(dir, item);
     const stat = fs.statSync(itemPath);
 
-    let name, content, id, description;
+    let slug, name, content, description;
 
     // Handle Component Directory
     if (stat.isDirectory()) {
       const indexFile = path.join(itemPath, "index.html");
 
       if (fs.existsSync(indexFile)) {
-        name = item;
-        id = item;
+        slug = item;
+        name = toTitleCase(item);
         content = fs.readFileSync(indexFile, "utf-8");
 
         // Optional description shown above the iframe in the main UI
@@ -641,13 +686,13 @@ function scanSwatches(dir, destDir, exclude = []) {
     }
     // Handle Single File
     else if (item.endsWith(".html")) {
-      name = path.basename(item, ".html");
-      id = name;
+      slug = path.basename(item, ".html");
+      name = toTitleCase(slug);
       content = fs.readFileSync(itemPath, "utf-8");
     }
 
-    if (name && content) {
-      swatches.push({ name, id, content, description: description || null });
+    if (slug && content) {
+      swatches.push({ slug, name, content, description: description || null });
     }
   });
 
@@ -779,14 +824,16 @@ function build(settings) {
       const stat = fs.statSync(itemPath);
 
       if (stat.isFile() && item.endsWith(".html")) {
-        const name = path.basename(item, ".html");
+        const slug = path.basename(item, ".html");
+        const name = toTitleCase(slug);
         const content = fs.readFileSync(itemPath, "utf-8");
-        rootSwatches.push({ name, id: name, content, sectionSlug: null });
+        rootSwatches.push({ slug, name, content, sectionSlug: null });
       } else if (stat.isDirectory()) {
         const indexFile = path.join(itemPath, "index.html");
         if (fs.existsSync(indexFile)) {
           // Component folder swatch at root — copy extra files to preview dest
-          const name = item;
+          const slug = item;
+          const name = toTitleCase(item);
           const content = fs.readFileSync(indexFile, "utf-8");
           const descriptionFile = path.join(itemPath, "description.html");
           const description = fs.existsSync(descriptionFile)
@@ -794,12 +841,12 @@ function build(settings) {
             : null;
 
           // Copy extra files into preview/id/
-          const swatchDestDir = path.join(settings.distPreviewDir, name);
+          const swatchDestDir = path.join(settings.distPreviewDir, slug);
           copySwatchAssets(itemPath, swatchDestDir);
 
           rootSwatches.push({
+            slug,
             name,
-            id: name,
             content,
             description,
             sectionSlug: null,
@@ -828,16 +875,23 @@ function build(settings) {
     return a.localeCompare(b);
   });
 
-  sortedKeys.forEach((section) => {
-    const swatches = sections[section];
-    sidebarLinks += `<h2>${section}</h2>\n`;
-    sidebarLinks += `<ul role="list">\n`;
-    sidebarLinks += swatches
-      .map((p) => `  <li><a href="#${p.id}">${p.name}</a></li>`)
-      .join("\n");
-    sidebarLinks += `\n</ul>\n`;
+  sortedKeys.forEach((category) => {
+    const swatches = sections[category];
 
-    // Generate Blocks
+    const categorySlug =
+      category === "Design Tokens"
+        ? "tokens"
+        : category === "Patterns"
+          ? "patterns"
+          : category.toLowerCase().replace(/\s+/g, "-");
+
+    sidebarLinks +=
+      settings.renderSidebarSection({
+        category,
+        categorySlug,
+        items: swatches.map((p) => ({ slug: p.slug, name: p.name })),
+      }) + "\n";
+
     swatchBlocks += swatches
       .map((p) => {
         const escapedContent = p.content
@@ -847,26 +901,20 @@ function build(settings) {
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
-        // Build preview path: preview/{section}/{id}/ or preview/{id}/
-        // Each swatch is a directory with its own index.html so sibling assets
-        // (css, js, images, etc.) can be referenced with relative paths.
-        const previewPath = p.sectionSlug
-          ? `preview/${p.sectionSlug}/${p.id}/`
-          : `preview/${p.id}/`;
-        const previewLink = previewPath;
+        const previewHref = p.sectionSlug
+          ? `preview/${p.sectionSlug}/${p.slug}/`
+          : `preview/${p.slug}/`;
 
-        return `
-      <section id="${p.id}" class="region flow">
-        <h2>${p.name} <small style="font-weight: normal; opacity: 0.6; font-size: 0.7em">(${section})</small></h2>
-        ${p.description ? `<div class="swatch-description">${p.description}</div>` : ""}
-        <iframe src="${previewPath}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: auto; overflow: auto;"></iframe>
-        <div class="swatchkit-preview-link"><a href="${previewLink}">View full screen</a></div>
-        <details>
-          <summary>View source</summary>
-          <pre><code>${escapedContent}</code></pre>
-        </details>
-      </section>
-    `;
+        return settings.renderSwatchSection({
+          slug: p.slug,
+          name: p.name,
+          category,
+          categorySlug: p.sectionSlug,
+          description: p.description,
+          previewHref,
+          content: p.content,
+          escapedContent,
+        });
       })
       .join("\n");
   });
@@ -889,19 +937,19 @@ function build(settings) {
 
   if (previewLayoutContent) {
     let previewCount = 0;
-    sortedKeys.forEach((section) => {
-      const swatches = sections[section];
+    sortedKeys.forEach((category) => {
+      const swatches = sections[category];
       swatches.forEach((p) => {
         // Each swatch is output as a directory with index.html inside.
-        // preview/{section}/{id}/index.html  — depth: 3 levels from outDir
-        // preview/{id}/index.html            — depth: 2 levels from outDir
+        // preview/{category}/{slug}/index.html  — depth: 3 levels from outDir
+        // preview/{slug}/index.html            — depth: 2 levels from outDir
         let swatchDir, cssPath;
         if (p.sectionSlug) {
-          swatchDir = path.join(settings.distPreviewDir, p.sectionSlug, p.id);
-          cssPath = "../../../" + settings.cssPath; // preview/section/id/index.html -> ../../../ + cssPath
+          swatchDir = path.join(settings.distPreviewDir, p.sectionSlug, p.slug);
+          cssPath = "../../../" + settings.cssPath; // preview/section/slug/index.html -> ../../../ + cssPath
         } else {
-          swatchDir = path.join(settings.distPreviewDir, p.id);
-          cssPath = "../../" + settings.cssPath; // preview/id/index.html -> ../../ + cssPath
+          swatchDir = path.join(settings.distPreviewDir, p.slug);
+          cssPath = "../../" + settings.cssPath; // preview/slug/index.html -> ../../ + cssPath
         }
 
         if (!fs.existsSync(swatchDir))
