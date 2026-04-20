@@ -451,16 +451,27 @@ ${items}
 /**
  * Generate all token HTML files and write them to the tokens UI directory
  */
-function generateTokenSwatches(tokensDir, tokensUiDir) {
+function generateTokenSwatches(tokensDir, tokensUiDir, tokenSwatches = {}) {
+  const enabled = {
+    colors: true,
+    typography: true,
+    spacing: true,
+    fonts: true,
+    textWeights: true,
+    textLeading: true,
+    viewports: true,
+    ...tokenSwatches,
+  };
+
   const generators = [
-    { filename: 'colors.html', fn: generateColors },
-    { filename: 'typography.html', fn: generateTypography },
-    { filename: 'spacing.html', fn: generateSpacing },
-    { filename: 'fonts.html', fn: generateFonts },
-    { filename: 'text-weights.html', fn: generateTextWeights },
-    { filename: 'text-leading.html', fn: generateTextLeading },
-    { filename: 'viewports.html', fn: generateViewports },
-  ];
+    { filename: 'colors.html', fn: generateColors, key: 'colors' },
+    { filename: 'typography.html', fn: generateTypography, key: 'typography' },
+    { filename: 'spacing.html', fn: generateSpacing, key: 'spacing' },
+    { filename: 'fonts.html', fn: generateFonts, key: 'fonts' },
+    { filename: 'text-weights.html', fn: generateTextWeights, key: 'textWeights' },
+    { filename: 'text-leading.html', fn: generateTextLeading, key: 'textLeading' },
+    { filename: 'viewports.html', fn: generateViewports, key: 'viewports' },
+  ].filter(g => enabled[g.key] !== false);
 
   let generated = 0;
 

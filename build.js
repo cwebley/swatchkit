@@ -194,6 +194,17 @@ function resolveSettings(cliOptions, fileConfig) {
   const renderSwatchSection =
     fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
 
+  // Token swatch toggle config
+  const tokenSwatches = fileConfig.tokenSwatches || {
+    colors: true,
+    typography: true,
+    spacing: true,
+    fonts: true,
+    textWeights: true,
+    textLeading: true,
+    viewports: true,
+  };
+
   return {
     swatchkitDir,
     outDir,
@@ -220,6 +231,8 @@ function resolveSettings(cliOptions, fileConfig) {
     // Render callbacks
     renderSidebarSection,
     renderSwatchSection,
+    // Token swatch toggle
+    tokenSwatches,
   };
 }
 
@@ -451,6 +464,17 @@ module.exports = {
   // If omitted, SwatchKit uses its default rendering.
   // renderSidebarSection: ({ category, categorySlug, items }) => string,
   // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
+
+  // Enable/disable individual token HTML swatches (CSS tokens still generated regardless).
+  // tokenSwatches: {
+  //   colors: true,
+  //   typography: true,
+  //   spacing: true,
+  //   fonts: true,
+  //   textWeights: true,
+  //   textLeading: true,
+  //   viewports: true,
+  // },
 };
 `;
 }
@@ -763,7 +787,7 @@ function build(settings) {
   // 2.6 Generate token display HTML from JSON
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
   if (fs.existsSync(tokensUiDir)) {
-    const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir);
+    const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir, settings.tokenSwatches);
     if (generated > 0) {
       console.log(
         `Generated ${generated} token documentation files (swatchkit/tokens/*.html)`,

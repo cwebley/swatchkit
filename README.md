@@ -319,6 +319,22 @@ module.exports = {
 
   // Exclude files (supports glob patterns)
   exclude: ["*.test.js", "temp*"],
+
+  // Render callbacks for customizing generated markup.
+  // If omitted, SwatchKit uses its default rendering.
+  // renderSidebarSection: ({ category, categorySlug, items }) => string,
+  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
+
+  // Enable/disable individual token HTML swatches (CSS tokens still generated regardless).
+  tokenSwatches: {
+    colors: true,
+    typography: true,
+    spacing: true,
+    fonts: true,
+    textWeights: true,
+    textLeading: true,
+    viewports: true,
+  },
 };
 ```
 
