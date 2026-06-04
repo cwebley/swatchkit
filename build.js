@@ -63,24 +63,81 @@ function parseArgs(args) {
 }
 
 // --- 2. Config Loading ---
-function loadConfig(configPath) {
-  let finalPath;
-  if (configPath) {
-    finalPath = path.resolve(process.cwd(), configPath);
-  } else {
-    finalPath = path.join(process.cwd(), "swatchkit.config.js");
+const CONFIG_FILES = [
+  "swatchkit.config.cjs",
+  "swatchkit.config.mjs",
+  "swatchkit.config.js",
+];
+
+function findConfigPath(searchPath) {
+  if (searchPath) {
+    const resolved = path.resolve(process.cwd(), searchPath);
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
+    return null;
   }
 
-  if (fs.existsSync(finalPath)) {
-    try {
-      console.log(`[SwatchKit] Loading config from ${finalPath}`);
-      return require(finalPath);
-    } catch (e) {
-      console.error("[SwatchKit] Error loading config file:", e.message);
-      return {};
+  for (const filename of CONFIG_FILES) {
+    const candidate = path.join(process.cwd(), filename);
+    if (fs.existsSync(candidate)) {
+      return candidate;
     }
   }
-  return {};
+  return null;
+}
+
+async function loadConfig(configPath) {
+  const finalPath = findConfigPath(configPath);
+
+  if (!finalPath) {
+    return {};
+  }
+
+  console.log(`[SwatchKit] Loading config from ${finalPath}`);
+
+  if (finalPath.endsWith(".cjs")) {
+    return require(finalPath);
+  }
+
+  if (finalPath.endsWith(".mjs")) {
+    const { pathToFileURL } = require("url");
+    const url = pathToFileURL(finalPath).href + "?t=" + Date.now();
+    const mod = await import(url);
+    return mod.default ?? {};
+  }
+
+  // .js: try require first, fall back to dynamic import for ESM projects
+  try {
+    return require(finalPath);
+  } catch (requireError) {
+    if (requireError.message.includes("module is not defined")) {
+      try {
+        const { pathToFileURL } = require("url");
+        const url = pathToFileURL(finalPath).href + "?t=" + Date.now();
+        const mod = await import(url);
+        if (mod.default && typeof mod.default === "object") {
+          return mod.default;
+        }
+        throw new Error("Config must use 'export default' syntax in ESM projects.");
+      } catch (importError) {
+        throw new Error(
+          `[SwatchKit] Could not load config.\n\n` +
+          `If your project uses "type": "module", use ESM syntax:\n\n` +
+          `  // swatchkit.config.js\n` +
+          `  export default {\n` +
+          `    cssDir: "./css"\n` +
+          `  };\n\n` +
+          `Or rename to .cjs for CommonJS syntax:\n\n` +
+          `  // swatchkit.config.cjs\n` +
+          `  module.exports = {\n` +
+          `    cssDir: "./css"\n` +
+          `  };`
+        );
+      }
+    }
+    throw requireError;
+  }
 }
 
 // --- 2.5 Glob Matching Helper ---
@@ -1167,35 +1224,37 @@ Options:
 }
 
 // --- Main Execution ---
-try {
-  const cliOptions = parseArgs(process.argv);
+;(async () => {
+  try {
+    const cliOptions = parseArgs(process.argv);
 
-  if (cliOptions.command === "help") {
-    printHelp();
-    process.exit(0);
-  }
-  if (cliOptions.command === "version") {
-    printVersion();
-    process.exit(0);
-  }
-
-  const fileConfig = loadConfig(cliOptions.config);
-  const settings = resolveSettings(cliOptions, fileConfig);
-
-  if (cliOptions.command === "new") {
-    runNew(cliOptions);
-  } else if (cliOptions.command === "scaffold") {
-    runInit(settings, cliOptions);
-  } else {
-    build(settings).catch((error) => {
-      console.error("[SwatchKit] Error:", error.message);
-      process.exit(1);
-    });
-    if (cliOptions.watch) {
-      watch(settings);
+    if (cliOptions.command === "help") {
+      printHelp();
+      process.exit(0);
     }
+    if (cliOptions.command === "version") {
+      printVersion();
+      process.exit(0);
+    }
+
+    const fileConfig = await loadConfig(cliOptions.config);
+    const settings = resolveSettings(cliOptions, fileConfig);
+
+    if (cliOptions.command === "new") {
+      runNew(cliOptions);
+    } else if (cliOptions.command === "scaffold") {
+      runInit(settings, cliOptions);
+    } else {
+      build(settings).catch((error) => {
+        console.error("[SwatchKit] Error:", error.message);
+        process.exit(1);
+      });
+      if (cliOptions.watch) {
+        watch(settings);
+      }
+    }
+  } catch (error) {
+    console.error("[SwatchKit] Error:", error.message);
+    process.exit(1);
   }
-} catch (error) {
-  console.error("[SwatchKit] Error:", error.message);
-  process.exit(1);
-}
+})();

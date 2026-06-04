@@ -352,7 +352,47 @@ swatchkit [command] [options]
 
 ## Configuration
 
-`swatchkit.config.js` is created by `swatchkit new`. You can also create it manually in your project root.
+SwatchKit looks for config in this order:
+
+1. `swatchkit.config.cjs` (CommonJS)
+2. `swatchkit.config.mjs` (ESM)
+3. `swatchkit.config.js` (depends on project's `"type"` in package.json)
+
+If your project has `"type": "module"` and you want to keep CommonJS config syntax, use `.cjs`.
+
+### CommonJS projects (no "type": "module")
+
+```javascript
+// swatchkit.config.js
+module.exports = {
+  cssDir: "./css",
+  cssCopy: true,
+};
+```
+
+### ESM projects ("type": "module")
+
+If your project uses JS swatches with `import`/`export`, add `"type": "module"` to package.json. Then config must use ESM syntax:
+
+```javascript
+// swatchkit.config.js
+export default {
+  cssDir: "./css",
+  cssCopy: false,
+};
+```
+
+Or keep CommonJS config by using `.cjs`:
+
+```javascript
+// swatchkit.config.cjs
+module.exports = {
+  cssDir: "./css",
+  cssCopy: true,
+};
+```
+
+### Config options
 
 ```javascript
 module.exports = {
