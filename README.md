@@ -105,6 +105,68 @@ swatchkit/
 - **Swatch folders:** Each swatch is a folder with an `index.html`. Files next to `index.html` (CSS, JS, images) are copied into the build output as sibling assets, so your `index.html` can reference them with relative paths.
 - **Underscore prefix:** Any file or folder prefixed with `_` is ignored at every level (e.g. `_wip/`, `_notes.md`).
 
+**Swatches must live directly inside a section folder.** Nested groups like `swatches/components/button/` are not currently scanned — use `swatches/button/` instead.
+
+### 1b. JavaScript Swatches
+
+A swatch folder may use `index.js` instead of `index.html` to generate HTML programmatically.
+
+```
+button/
+  index.html     # static HTML swatch (existing behavior)
+
+or:
+
+button/
+  index.js       # programmable swatch (new)
+  demo.js        # browser-side preview asset (still copied)
+```
+
+`index.js` runs at build time and must default-export an HTML string:
+
+```javascript
+import { renderButton } from "../../../components/button.js";
+
+const html = String.raw;
+
+export default html`
+  <h2>Button</h2>
+
+  <p>
+    Use buttons for actions on the current page.
+  </p>
+
+  <h3>Button element</h3>
+  ${renderButton({ label: "Save changes" })}
+
+  <h3>Button-styled link</h3>
+  ${renderButton({
+    label: "View brand",
+    href: "/brands/aurora/",
+  })}
+`;
+```
+
+If both `index.js` and `index.html` exist in the same folder, `index.js` wins.
+
+`index.js` is reserved for SwatchKit and is not copied as a preview asset. Other JavaScript files are copied as before.
+
+```
+button/
+  index.js    # build-time swatch source (not copied)
+  demo.js     # browser-side preview asset (copied)
+```
+
+If your JS swatches use ES module syntax (`import`/`export`), add `"type": "module"` to your project's `package.json`:
+
+```json
+{
+  "type": "module"
+}
+```
+
+Invalid `index.js` exports (non-string default) fail with a clear error during build.
+
 ### 2. Design Token Engine
 
 SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, and SwatchKit auto-generates `css/global/tokens.css` and `css/utilities/tokens.css`.

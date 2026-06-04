@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const chokidar = require("chokidar");
 const { processTokens, generateTokenUtilities } = require("./src/tokens");
 const { generateTokenSwatches } = require("./src/generators");
@@ -647,7 +648,7 @@ function copyDir(src, dest, force = false) {
 }
 
 // Special filenames that SwatchKit reads and treats differently — not copied verbatim.
-const SWATCH_SPECIAL_FILES = new Set(["index.html", "description.html"]);
+const SWATCH_SPECIAL_FILES = new Set(["index.html", "index.js", "description.html"]);
 
 // Recursively copy a swatch's assets (all files and subdirs except index.html,
 // description.html, and anything prefixed with _ or .) to destDir.
@@ -665,18 +666,18 @@ function copySwatchAssets(srcDir, destDir) {
   }
 }
 
-function scanSwatches(dir, destDir, exclude = []) {
+async function scanSwatches(dir, destDir, exclude = []) {
   const swatches = [];
   if (!fs.existsSync(dir)) return swatches;
 
   const items = fs.readdirSync(dir);
 
-  items.forEach((item) => {
+  for (const item of items) {
     // Skip excluded items
-    if (exclude.some((pattern) => matchesGlob(item, pattern))) return;
+    if (exclude.some((pattern) => matchesGlob(item, pattern))) continue;
 
     // Skip _swatchkit.html or hidden files
-    if (item.startsWith("_") || item.startsWith(".")) return;
+    if (item.startsWith("_") || item.startsWith(".")) continue;
 
     const itemPath = path.join(dir, item);
     const stat = fs.statSync(itemPath);
@@ -685,27 +686,47 @@ function scanSwatches(dir, destDir, exclude = []) {
 
     // Handle Component Directory
     if (stat.isDirectory()) {
-      const indexFile = path.join(itemPath, "index.html");
+      const indexJs = path.join(itemPath, "index.js");
+      const indexHtml = path.join(itemPath, "index.html");
 
-      if (fs.existsSync(indexFile)) {
-        slug = item;
-        name = toTitleCase(item);
-        content = fs.readFileSync(indexFile, "utf-8");
+      // index.js takes priority over index.html
+      if (fs.existsSync(indexJs)) {
+        try {
+          const url = pathToFileURL(indexJs).href + "?t=" + Date.now();
+          const mod = await import(url);
 
-        // Optional description shown above the iframe in the main UI
-        const descriptionFile = path.join(itemPath, "description.html");
-        if (fs.existsSync(descriptionFile)) {
-          description = fs.readFileSync(descriptionFile, "utf-8");
+          if (typeof mod.default !== "string") {
+            throw new Error(`index.js must default-export an HTML string.`);
+          }
+          content = mod.default;
+        } catch (e) {
+          console.error(
+            `[SwatchKit] Error loading ${indexJs}: ${e.message}`,
+          );
+          continue;
         }
+      } else if (fs.existsSync(indexHtml)) {
+        content = fs.readFileSync(indexHtml, "utf-8");
+      } else {
+        continue;
+      }
 
-        // Copy all non-special files and subdirectories from the component
-        // folder into its preview output directory so index.html can reference
-        // them with relative paths (e.g. ./styles.css, ./script.js, ./img/).
-        // Files and directories prefixed with _ or . are skipped.
-        if (destDir) {
-          const swatchDestDir = path.join(destDir, item);
-          copySwatchAssets(itemPath, swatchDestDir);
-        }
+      slug = item;
+      name = toTitleCase(item);
+
+      // Optional description shown above the iframe in the main UI
+      const descriptionFile = path.join(itemPath, "description.html");
+      if (fs.existsSync(descriptionFile)) {
+        description = fs.readFileSync(descriptionFile, "utf-8");
+      }
+
+      // Copy all non-special files and subdirectories from the component
+      // folder into its preview output directory so index.html can reference
+      // them with relative paths (e.g. ./styles.css, ./script.js, ./img/).
+      // Files and directories prefixed with _ or . are skipped.
+      if (destDir) {
+        const swatchDestDir = path.join(destDir, item);
+        copySwatchAssets(itemPath, swatchDestDir);
       }
     }
     // Handle Single File
@@ -718,7 +739,7 @@ function scanSwatches(dir, destDir, exclude = []) {
     if (slug && content) {
       swatches.push({ slug, name, content, description: description || null });
     }
-  });
+  }
 
   return swatches;
 }
@@ -741,7 +762,7 @@ function validateOutDir(outDir) {
   }
 }
 
-function build(settings) {
+async function build(settings) {
   console.log(`[SwatchKit] Starting build...`);
   console.log(`  Source:   ${settings.swatchkitDir}`);
   console.log(`  Output:   ${settings.outDir}`);
@@ -814,35 +835,35 @@ function build(settings) {
     const exclude = settings.exclude || [];
 
     // Scan subdirectories (Sections)
-    items.forEach((item) => {
-      if (exclude.some((p) => matchesGlob(item, p))) return;
-      if (item.startsWith(".") || item.startsWith("_")) return;
+    for (const item of items) {
+      if (exclude.some((p) => matchesGlob(item, p))) continue;
+      if (item.startsWith(".") || item.startsWith("_")) continue;
 
       const itemPath = path.join(settings.swatchkitDir, item);
       if (fs.lstatSync(itemPath).isDirectory()) {
-        const hasIndex = fs.existsSync(path.join(itemPath, "index.html"));
+        // Check if section has any index.js or index.html (indicating it's not just a container)
+        const hasIndexJs = fs.existsSync(path.join(itemPath, "index.js"));
+        const hasIndexHtml = fs.existsSync(path.join(itemPath, "index.html"));
 
-        if (!hasIndex) {
-          // It is a Section Container (e.g. "Utilities")
+        // If it has neither index.js nor index.html, treat it as a section container
+        if (!hasIndexJs && !hasIndexHtml) {
           const sectionName =
             item === "tokens" ? "Design Tokens" : toTitleCase(item);
-          // Pass the preview dest dir so extra files get copied alongside each swatch
           const sectionDestDir = path.join(settings.distPreviewDir, item);
-          const swatches = scanSwatches(itemPath, sectionDestDir, exclude);
-          // Tag each swatch with its section slug for preview paths
+          const swatches = await scanSwatches(itemPath, sectionDestDir, exclude);
           swatches.forEach((s) => (s.sectionSlug = item));
           if (swatches.length > 0) {
             sections[sectionName] = swatches;
           }
         }
       }
-    });
+    }
 
     // Scan root swatches (Files + Component Folders at root)
     const rootSwatches = [];
-    items.forEach((item) => {
-      if (exclude.some((p) => matchesGlob(item, p))) return;
-      if (item.startsWith(".") || item.startsWith("_")) return;
+    for (const item of items) {
+      if (exclude.some((p) => matchesGlob(item, p))) continue;
+      if (item.startsWith(".") || item.startsWith("_")) continue;
 
       const itemPath = path.join(settings.swatchkitDir, item);
       const stat = fs.statSync(itemPath);
@@ -853,31 +874,52 @@ function build(settings) {
         const content = fs.readFileSync(itemPath, "utf-8");
         rootSwatches.push({ slug, name, content, sectionSlug: null });
       } else if (stat.isDirectory()) {
-        const indexFile = path.join(itemPath, "index.html");
-        if (fs.existsSync(indexFile)) {
-          // Component folder swatch at root — copy extra files to preview dest
-          const slug = item;
-          const name = toTitleCase(item);
-          const content = fs.readFileSync(indexFile, "utf-8");
+        const indexJs = path.join(itemPath, "index.js");
+        const indexHtml = path.join(itemPath, "index.html");
+
+        if (fs.existsSync(indexJs)) {
+          try {
+            const url = pathToFileURL(indexJs).href + "?t=" + Date.now();
+            const mod = await import(url);
+            if (typeof mod.default !== "string") {
+              throw new Error(`index.js must default-export an HTML string.`);
+            }
+            const descriptionFile = path.join(itemPath, "description.html");
+            const description = fs.existsSync(descriptionFile)
+              ? fs.readFileSync(descriptionFile, "utf-8")
+              : null;
+            const swatchDestDir = path.join(settings.distPreviewDir, item);
+            copySwatchAssets(itemPath, swatchDestDir);
+            rootSwatches.push({
+              slug: item,
+              name: toTitleCase(item),
+              content: mod.default,
+              description,
+              sectionSlug: null,
+            });
+          } catch (e) {
+            console.error(
+              `[SwatchKit] Error loading ${indexJs}: ${e.message}`,
+            );
+            continue;
+          }
+        } else if (fs.existsSync(indexHtml)) {
           const descriptionFile = path.join(itemPath, "description.html");
           const description = fs.existsSync(descriptionFile)
             ? fs.readFileSync(descriptionFile, "utf-8")
             : null;
-
-          // Copy extra files into preview/id/
-          const swatchDestDir = path.join(settings.distPreviewDir, slug);
+          const swatchDestDir = path.join(settings.distPreviewDir, item);
           copySwatchAssets(itemPath, swatchDestDir);
-
           rootSwatches.push({
-            slug,
-            name,
-            content,
+            slug: item,
+            name: toTitleCase(item),
+            content: fs.readFileSync(indexHtml, "utf-8"),
             description,
             sectionSlug: null,
           });
         }
       }
-    });
+    }
 
     if (rootSwatches.length > 0) {
       sections["Patterns"] = rootSwatches;
@@ -1037,21 +1079,30 @@ function watch(settings) {
   );
 
   let buildTimeout;
-  let isRebuilding = false;
+  let building = false;
+  let pending = false;
 
   const rebuild = () => {
     if (buildTimeout) clearTimeout(buildTimeout);
-    buildTimeout = setTimeout(() => {
+    buildTimeout = setTimeout(async () => {
+      if (building) {
+        pending = true;
+        return;
+      }
+      building = true;
       try {
-        isRebuilding = true;
         console.log("[SwatchKit] Change detected. Rebuilding...");
-        build(settings);
+        await build(settings);
       } catch (e) {
         console.error("[SwatchKit] Build failed:", e.message);
       } finally {
-        isRebuilding = false;
+        building = false;
+        if (pending) {
+          pending = false;
+          rebuild();
+        }
       }
-    }, 100); // 100ms debounce
+    }, 100);
   };
 
   // Watch source files for changes.
@@ -1078,7 +1129,7 @@ function watch(settings) {
   // infinite rebuild loops — since our own build deletes and recreates the
   // output directory, an event-based watcher would retrigger endlessly.
   setInterval(() => {
-    if (!isRebuilding && !fs.existsSync(settings.outDir)) {
+    if (!building && !fs.existsSync(settings.outDir)) {
       console.log("[SwatchKit] Output directory was deleted. Rebuilding...");
       rebuild();
     }
@@ -1136,7 +1187,10 @@ try {
   } else if (cliOptions.command === "scaffold") {
     runInit(settings, cliOptions);
   } else {
-    build(settings);
+    build(settings).catch((error) => {
+      console.error("[SwatchKit] Error:", error.message);
+      process.exit(1);
+    });
     if (cliOptions.watch) {
       watch(settings);
     }
