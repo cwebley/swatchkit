@@ -28,14 +28,15 @@ my-project/
 │   ├── fonts.json
 │   ├── spacing.json
 │   └── ...
-├── css/
-│   ├── global/
-│   │   └── tokens.css           # Generated from tokens/*.json (do not edit)
-│   ├── compositions/            # Layout primitives (flow, sidebar, etc.)
-│   ├── swatches/                # Component/swatch stylesheets
-│   ├── main.css                 # Main stylesheet (you own this)
-│   ├── swatchkit-ui.css         # UI styles for the documentation sidebar
-│   └── swatchkit-preview.css    # Styles for swatch preview pages
+├── src/
+│   └── css/                     # ← default cssDir for new projects
+│       ├── global/
+│       │   └── tokens.css       # Generated from tokens/*.json (do not edit)
+│       ├── compositions/        # Layout primitives (flow, sidebar, etc.)
+│       ├── swatches/            # Component/swatch stylesheets
+│       ├── main.css             # Main stylesheet (you own this)
+│       ├── swatchkit-ui.css     # UI styles for the documentation sidebar
+│       └── swatchkit-preview.css # Styles for swatch preview pages
 ├── swatchkit/
 │   ├── _swatchkit.html          # Layout template (you own this)
 │   ├── tokens/                  # Visual documentation for design tokens
@@ -48,11 +49,14 @@ my-project/
 └── dist/
     └── swatchkit/               # Built pattern library
         ├── index.html
+        ├── css/                 # Copied from src/css/ (when cssCopy: true)
         └── preview/             # Full-screen preview pages
             └── swatches/
                 └── hello/
                     └── index.html
 ```
+
+`swatchkit new` writes a `swatchkit.config.js` at the project root. It detects whether your `package.json` has `"type": "module"` and emits `export default` (ESM) or `module.exports` (CommonJS) accordingly. The default `cssDir` is `./src/css`. To use a different location (e.g. a root `css/` for legacy layouts), pass `--cssDir ./css`.
 
 ---
 
@@ -344,7 +348,7 @@ swatchkit [command] [options]
 | `--config`  | `-c`  | Path to config file.                                               |
 | `--input`   | `-i`  | Pattern directory (Default: `swatchkit/`).                         |
 | `--outDir`  | `-o`  | Output directory (Default: `dist/swatchkit`).                      |
-| `--cssDir`  |       | CSS directory, for use with `new` (Default: `src/css`).            |
+| `--cssDir`  |       | CSS directory. Used by `swatchkit new` to set the scaffold destination and stored in `swatchkit.config.js`. If you skip `swatchkit new` and have no config, the build falls back to `./css`. |
 | `--force`   | `-f`  | Overwrite existing files (`new`: config, `scaffold`: blueprints).  |
 | `--dry-run` |       | Show what scaffold would create or change, without writing.        |
 | `--help`    | `-h`  | Show help message.                                                 |

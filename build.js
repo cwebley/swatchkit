@@ -87,6 +87,24 @@ function findConfigPath(searchPath) {
   return null;
 }
 
+// Unwrap a config export to a plain config object.
+// In Node 22+, require() of an ESM file returns a Module namespace
+// ({ default: { ...config } }) instead of throwing. Without unwrapping
+// .default, fileConfig.cssDir would be undefined and SwatchKit would
+// silently fall back to the default cssDir.
+function normalizeConfigExport(config) {
+  if (
+    config &&
+    typeof config === "object" &&
+    "default" in config &&
+    typeof config.default === "object"
+  ) {
+    return config.default;
+  }
+
+  return config || {};
+}
+
 async function loadConfig(configPath) {
   const finalPath = findConfigPath(configPath);
 
@@ -97,19 +115,21 @@ async function loadConfig(configPath) {
   console.log(`[SwatchKit] Loading config from ${finalPath}`);
 
   if (finalPath.endsWith(".cjs")) {
-    return require(finalPath);
+    return normalizeConfigExport(require(finalPath));
   }
 
   if (finalPath.endsWith(".mjs")) {
     const { pathToFileURL } = require("url");
     const url = pathToFileURL(finalPath).href + "?t=" + Date.now();
     const mod = await import(url);
-    return mod.default ?? {};
+    return normalizeConfigExport(mod);
   }
 
-  // .js: try require first, fall back to dynamic import for ESM projects
+  // .js: try require first, fall back to dynamic import for ESM projects.
+  // On Node 22+, require() of an ESM file succeeds and returns a namespace,
+  // so normalizeConfigExport unwraps .default either way.
   try {
-    return require(finalPath);
+    return normalizeConfigExport(require(finalPath));
   } catch (requireError) {
     if (requireError.message.includes("module is not defined")) {
       try {
@@ -137,6 +157,20 @@ async function loadConfig(configPath) {
       }
     }
     throw requireError;
+  }
+}
+
+// Detect whether the project is an ESM package (has "type": "module"
+// in its package.json). Used by `swatchkit new` to generate the right
+// config syntax.
+function projectUsesEsm(cwd = process.cwd()) {
+  const packageJsonPath = path.join(cwd, "package.json");
+  if (!fs.existsSync(packageJsonPath)) return false;
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    return packageJson.type === "module";
+  } catch {
+    return false;
   }
 }
 
@@ -499,8 +533,7 @@ function reportInitStatus(settings) {
 
 // --- 5. New Command Logic ---
 function generateConfig(cssDir) {
-  return `// swatchkit.config.js
-module.exports = {
+  const body = `{
   // Where your CSS lives. SwatchKit scaffolds blueprints here and reads
   // tokens from here when building the pattern library.
   cssDir: "${cssDir}",
@@ -533,7 +566,16 @@ module.exports = {
   //   textLeading: true,
   //   viewports: true,
   // },
-};
+}`;
+
+  if (projectUsesEsm()) {
+    return `// swatchkit.config.js
+export default ${body};
+`;
+  }
+
+  return `// swatchkit.config.js
+module.exports = ${body};
 `;
 }
 
@@ -1215,7 +1257,9 @@ Options:
   -c, --config    Path to config file
   -i, --input     Pattern directory (default: swatchkit/)
   -o, --outDir    Output directory (default: dist/swatchkit)
-      --cssDir    CSS directory, for use with "new" (default: src/css)
+      --cssDir    CSS directory. Sets cssDir in swatchkit.config.js when
+                  used with "new" (default: src/css). If no config file is
+                  present at build time, the build falls back to ./css.
   -f, --force     Overwrite existing files (new: overwrites config,
                   scaffold: overwrites all blueprint files with backups)
       --dry-run   Show what scaffold would create or change, without writing
