@@ -1,74 +1,57 @@
 # SwatchKit
 
-**SwatchKit** is a lightweight tool for generating HTML pattern libraries and Design Systems. It acts as a **Pattern Discovery Engine**: it scans your folders for HTML components and stitches them into a documentation site using a layout you control.
+**SwatchKit** is a lightweight tool for generating HTML pattern libraries and design systems. It scans your folders for components, stitches them into a documentation site, and lets you share the same render functions between your app and the library.
 
-It follows the "Magic Folder" principle: drop files in, and a library comes out.
+The "Magic Folder" principle: drop files in, a library comes out.
 
-## Quick Start
+## The pattern: one source of truth
 
-Try it instantly in any project:
-
-```bash
-# 1. Create a config (sets your CSS location and preferences)
-npx swatchkit new
-
-# 2. Scaffold layout, tokens, and CSS blueprints
-npx swatchkit scaffold
-
-# 3. Build the library
-npx swatchkit
-```
-
-This will create:
+The interesting case is when your app and your pattern library share render functions. You write `renderButton()` once, use it in `src/pages/home.js` for the real app, and use it again in `swatchkit/swatches/button/index.js` for the docs. Edit one, both update.
 
 ```
 my-project/
-├── tokens/                      # Design token definitions (you edit these)
-│   ├── colors.json
-│   ├── fonts.json
-│   ├── spacing.json
-│   └── ...
 ├── src/
-│   └── css/                     # ← default cssDir for new projects
-│       ├── global/
-│       │   └── tokens.css       # Generated from tokens/*.json (do not edit)
-│       ├── compositions/        # Layout primitives (flow, sidebar, etc.)
-│       ├── swatches/            # Component/swatch stylesheets
-│       ├── main.css             # Main stylesheet (you own this)
-│       ├── swatchkit-ui.css     # UI styles for the documentation sidebar
-│       └── swatchkit-preview.css # Styles for swatch preview pages
+│   ├── components/button.js          # shared renderButton
+│   ├── pages/home.js                 # calls renderButton → real app HTML
+│   └── css/                          # cssDir — your stylesheet source
 ├── swatchkit/
-│   ├── _swatchkit.html          # Layout template (you own this)
-│   ├── tokens/                  # Visual documentation for design tokens
-│   │   ├── colors.html
-│   │   ├── typography.html
-│   │   └── ...
-│   └── swatches/                # Your UI components
-│       └── hello/               # Example swatch
-│           └── index.html
-└── dist/
-    └── swatchkit/               # Built pattern library
-        ├── index.html
-        ├── css/                 # Copied from src/css/ (when cssCopy: true)
-        └── preview/             # Full-screen preview pages
-            └── swatches/
-                └── hello/
-                    └── index.html
+│   ├── _swatchkit.html
+│   ├── _preview.html
+│   └── swatches/
+│       └── button/
+│           ├── index.js              # calls renderButton → swatch HTML
+│           └── demo.js               # sibling asset, copied to dist
+├── tokens/                           # design tokens (JSON)
+├── scripts/build-site.js             # renders src/pages/home.js → dist/index.html
+├── swatchkit.config.js
+└── dist/                             # generated
+    ├── index.html                    # main app (rendered at build time)
+    ├── css/                          # one copy, shared
+    └── swatchkit/
+        ├── index.html                # references ../css/main.css
+        └── preview/...
 ```
 
-`swatchkit new` writes a `swatchkit.config.js` at the project root. It detects whether your `package.json` has `"type": "module"` and emits `export default` (ESM) or `module.exports` (CommonJS) accordingly. The default `cssDir` is `./src/css`. To use a different location (e.g. a root `css/` for legacy layouts), pass `--cssDir ./css`.
+## Quick start
 
----
+```bash
+# 1. Create config (picks CJS or ESM based on package.json#type)
+npx swatchkit new --cssDir ./src/css
 
-## Project Setup (Recommended)
+# 2. Scaffold CSS blueprints, layout templates, token JSONs
+npx swatchkit scaffold
 
-For real projects, install SwatchKit as a development dependency to lock the version.
+# 3. Build
+npx swatchkit
+```
+
+`swatchkit new` defaults to `./src/css`. If you run `swatchkit` with no config file, the build falls back to `./css`. To pick a different location up front, pass `--cssDir ./css` (or anything else). The build output goes to `dist/swatchkit/` by default.
+
+For real projects, install as a dev dep and add a script:
 
 ```bash
 npm install -D swatchkit
 ```
-
-Then add it to your `package.json` scripts:
 
 ```json
 "scripts": {
@@ -76,489 +59,257 @@ Then add it to your `package.json` scripts:
 }
 ```
 
-## Features
+## The Magic Folder
 
-### 1. The Magic Folder & Project Structure
-
-By default, SwatchKit looks for a `swatchkit/` folder in your project root.
-
-**Organize by Folder:**
-SwatchKit automatically turns subfolders into sections in the documentation sidebar.
+SwatchKit reads from a single folder (`swatchkit/` by default). Top-level folders under `swatchkit/` become sidebar sections. Folders directly inside those sections become swatches.
 
 ```
 swatchkit/
-├── tokens/              # Section: "Design Tokens" (visual previews)
+├── tokens/                # section: "Design Tokens" (visual previews)
 │   ├── colors.html
 │   └── typography.html
-├── swatches/            # Section: "Swatches" (default for components)
+├── swatches/              # section: "Swatches"
 │   ├── button/
 │   │   └── index.html
 │   └── card/
 │       ├── index.html
-│       ├── styles.css   # Sibling assets are copied alongside
+│       ├── styles.css     # sibling assets copied alongside
 │       └── script.js
-├── compositions/        # Section: "Compositions"
-│   └── sidebar/
-│       └── index.html
-└── utilities/           # Section: "Utilities"
-    └── flow/
-        └── index.html
+├── compositions/          # section: "Compositions"
+│   └── sidebar/index.html
+└── utilities/             # section: "Utilities"
+    └── flow/index.html
 ```
 
-- **Subfolders:** Create a new section (e.g. `utilities/` -> "Utilities").
-- **Swatch folders:** Each swatch is a folder with an `index.html`. Files next to `index.html` (CSS, JS, images) are copied into the build output as sibling assets, so your `index.html` can reference them with relative paths.
-- **Underscore prefix:** Any file or folder prefixed with `_` is ignored at every level (e.g. `_wip/`, `_notes.md`).
+Rules:
+- **One level deep.** A swatch is a folder with an `index.html` (or `index.js`, see below). Nested groups like `swatches/components/button/` are not scanned — use `swatches/button/`.
+- **Underscore prefix is ignored.** `_wip/`, `_notes.md`, `_swatchkit.html` all stay out of the build.
+- **Sibling assets travel with the swatch.** Anything next to `index.html` (CSS, JS, images) is copied to the build output, so your swatch can reference them with relative paths.
 
-**Swatches must live directly inside a section folder.** Nested groups like `swatches/components/button/` are not currently scanned — use `swatches/button/` instead.
+## JavaScript swatches
 
-### 1b. JavaScript Swatches
+A swatch folder may use `index.js` instead of `index.html` to generate HTML programmatically. This is how you share render functions between your app and the library.
 
-A swatch folder may use `index.js` instead of `index.html` to generate HTML programmatically.
-
-```
-button/
-  index.html     # static HTML swatch (existing behavior)
-
-or:
-
-button/
-  index.js       # programmable swatch (new)
-  demo.js        # browser-side preview asset (still copied)
-```
-
-`index.js` runs at build time and must default-export an HTML string:
-
-```javascript
-import { renderButton } from "../../../components/button.js";
+```js
+// swatchkit/swatches/button/index.js
+import { renderButton } from "../../../src/components/button.js";
 
 const html = String.raw;
 
 export default html`
   <h2>Button</h2>
-
-  <p>
-    Use buttons for actions on the current page.
-  </p>
-
-  <h3>Button element</h3>
   ${renderButton({ label: "Save changes" })}
-
-  <h3>Button-styled link</h3>
-  ${renderButton({
-    label: "View brand",
-    href: "/brands/aurora/",
-  })}
+  ${renderButton({ label: "View brand", href: "/brands/aurora/" })}
 `;
 ```
 
-If both `index.js` and `index.html` exist in the same folder, `index.js` wins.
+- `index.js` runs at build time and must default-export an HTML string. Non-string defaults fail with a clear error.
+- If both `index.js` and `index.html` exist, `index.js` wins.
+- `index.js` is reserved for SwatchKit and is not copied as a preview asset. Other `.js` files in the folder are copied (e.g. `demo.js` for browser-side scripts).
+- For JavaScript swatches that use `import` / `export`, set `"type": "module"` in your `package.json`. Without that, the swatch runs as CommonJS and `import` syntax is a parse error.
 
-`index.js` is reserved for SwatchKit and is not copied as a preview asset. Other JavaScript files are copied as before.
+## Two ways to ship CSS
+
+SwatchKit's CSS behavior is controlled by `cssCopy` in the config. The default is `true`; for integrated apps you'll usually want `false`.
+
+### Self-contained (`cssCopy: true`)
+
+SwatchKit copies `cssDir` into `dist/swatchkit/css/`. The pattern library is fully self-contained — you can serve just `dist/swatchkit/` anywhere.
+
+```js
+// swatchkit.config.js
+export default { cssDir: "./src/css", cssCopy: true };
+```
 
 ```
-button/
-  index.js    # build-time swatch source (not copied)
-  demo.js     # browser-side preview asset (copied)
+dist/swatchkit/
+├── css/main.css            ← copied from src/css/
+└── index.html
 ```
 
-If your JS swatches use ES module syntax (`import`/`export`), add `"type": "module"` to your project's `package.json`:
+Use this when the pattern library is the deliverable, or when you're just kicking the tires.
+
+### Integrated (`cssCopy: false`) — the test-10 case
+
+SwatchKit skips the copy and writes `<link>` tags pointing at `cssPath` instead. You put the CSS in `dist/css/` once, the library references it, and your app's HTML references it too. No duplication.
+
+```js
+// swatchkit.config.js
+export default {
+  cssDir: "./src/css",
+  cssCopy: false,
+  cssPath: "../css/",
+};
+```
+
+```
+dist/
+├── index.html              ← your app, links ./css/main.css
+├── css/main.css            ← one copy, shared
+└── swatchkit/
+    ├── index.html          ← links ../css/main.css
+    └── preview/...
+```
+
+`cssPath` is the path from swatchkit's HTML to the CSS. The default (when omitted) is `../<basename of cssDir>/` — so `cssDir: "./src/css"` defaults to `"../css/"`. For most integrated projects, that's all you need. Set it explicitly only if your build puts CSS somewhere other than `dist/css/`.
+
+For an integrated app, your `package.json` typically chains both steps:
 
 ```json
 {
-  "type": "module"
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build:site": "node scripts/build-site.js",
+    "build:swatchkit": "swatchkit",
+    "build:css": "mkdir -p dist && cp -r src/css dist/css",
+    "build": "npm run clean && npm run build:site && npm run build:swatchkit && npm run build:css",
+    "patterns": "swatchkit"
+  }
 }
 ```
 
-Invalid `index.js` exports (non-string default) fail with a clear error during build.
+`build:swatchkit` runs first so any freshly regenerated `src/css/global/tokens.css` and `src/css/utilities/tokens.css` get picked up by `build:css`. Even with `cssCopy: false`, SwatchKit still regenerates those token files inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`.
 
-### 2. Design Token Engine
+The `cp -r src/css dist/css` step is fine for development and small projects. For production, replace it with your CSS bundler (Lightning CSS, PostCSS, esbuild, etc.) — the only contract the swatchkit HTML depends on is a stable `dist/css/main.css`.
 
-SwatchKit scaffolds a design system for you. Edit the JSON files in `tokens/`, and SwatchKit auto-generates `css/global/tokens.css` and `css/utilities/tokens.css`.
+## Configuration
 
-**Supported Tokens:**
+`swatchkit.config.js` at the project root. All options are optional.
 
-- **Colors** (`colors.json`): Generates palettes.
-- **Fluid Typography** (`text-sizes.json`): Generates `clamp()` based type scales using Utopia methodology.
-- **Fluid Spacing** (`spacing.json`): Generates `clamp()` based spacing.
-- **Modular Leading** (`text-leading.json`): Generates line-heights using `pow()` modular scales.
-- **Fonts & Weights**: Manages font families and weights.
+```js
+export default {
+  // Pattern source directory (default: "./swatchkit")
+  input: "./patterns",
 
-Visual documentation patterns for these tokens live in `swatchkit/tokens/` and are created during scaffold.
+  // Output directory (default: "./dist/swatchkit")
+  outDir: "./dist/patterns",
 
-### 3. Intelligent Fluid Logic
+  // CSS source directory.
+  // `swatchkit new` defaults this to "./src/css".
+  // No-config builds fall back to "./css".
+  cssDir: "./src/css",
 
-SwatchKit can auto-calculate fluid typography and spacing scales.
+  // Token JSON source directory (default: "./tokens")
+  tokensDir: "./src/tokens",
 
-**Static vs Fluid:**
+  // Copy cssDir into outDir/css. Set false to reference CSS via cssPath
+  // instead. See "Two ways to ship CSS" above.
+  cssCopy: true,
 
-- **Static:** Provide a `value` (e.g. `"16px"`).
-- **Fluid:** Provide `min` and `max` (e.g. `16` and `18`).
-- **Auto-Fluid:** Provide just ONE side (`min` or `max`), and SwatchKit calculates the other using a default ratio (1.125).
+  // Path from swatchkit's HTML to the CSS. Only used when cssCopy is false.
+  // Default: "../<basename of cssDir>/"
+  cssPath: "../css/",
 
-**Example (`tokens/text-sizes.json`):**
+  // Exclude files from the pattern library (supports globs).
+  exclude: ["*.test.js"],
+
+  // Toggle individual token HTML swatches (CSS still generated regardless).
+  // tokenSwatches: { colors: true, typography: true, spacing: true, ... },
+
+  // Override the default HTML renderers.
+  // renderSidebarSection: ({ category, categorySlug, items }) => string,
+  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
+};
+```
+
+SwatchKit looks for the config in this order: `swatchkit.config.cjs` (CJS), `swatchkit.config.mjs` (ESM), `swatchkit.config.js` (depends on project's `package.json#type`). Rename to `.cjs` if you need CJS syntax in an ESM project.
+
+## CLI
+
+```bash
+swatchkit [command] [options]
+```
+
+| Command | What it does |
+| :--- | :--- |
+| `swatchkit new` | Create `swatchkit.config.js`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. |
+| `swatchkit scaffold` | Copy CSS blueprints, token JSONs, and layout templates. Status report if already scaffolded. |
+| `swatchkit scaffold --force` | Overwrite all scaffold-managed files (with `.bak` backups). |
+| `swatchkit scaffold --dry-run` | Show what would change, write nothing. |
+| `swatchkit` (default) | Build the pattern library. |
+
+| Flag | Short | What it does |
+| :--- | :--- | :--- |
+| `--watch` | `-w` | Rebuild on file change. |
+| `--config` | `-c` | Path to config file. |
+| `--input` | `-i` | Pattern source dir (default: `swatchkit/`). |
+| `--outDir` | `-o` | Output dir (default: `dist/swatchkit`). |
+| `--cssDir` | | CSS dir for `new` (default prompt: `src/css`). |
+| `--force` | `-f` | Overwrite (`new`: config, `scaffold`: blueprints). |
+| `--dry-run` | | `scaffold`: report without writing. |
+| `--help` | `-h` | |
+| `--version` | `-v` | |
+
+## How it works
+
+`swatchkit` (the build command) does four things:
+
+1. **Reads `tokens/*.json`** and regenerates `css/global/tokens.css` and `css/utilities/tokens.css` if the content changed. These are the auto-generated CSS files in your source tree. SwatchKit also regenerates token-documentation HTML under `swatchkit/tokens/` on every build.
+2. **Copies CSS** from `cssDir` to `outDir/css` (only when `cssCopy: true`).
+3. **Scans `swatchkit/`** for swatches, renders each one. Static `index.html` swatches go through unchanged. Dynamic `index.js` swatches are imported and executed for their HTML. Sibling assets are copied alongside.
+4. **Writes** `outDir/index.html` (the library) and one `outDir/preview/{section}/{id}/index.html` per swatch (full-screen previews).
+
+In watch mode, SwatchKit compares generated content against existing files and **skips the write when nothing has changed** — so most rebuilds don't touch your CSS directory, and there's no infinite-rebuild loop when running alongside `onchange` or framework dev servers.
+
+## What swatchkit owns vs what you own
+
+| Path | Owned by | Notes |
+| :--- | :--- | :--- |
+| `tokens/*.json` | you | Source of truth for design tokens. |
+| `src/css/main.css` | you | Your entry point. |
+| `src/css/global/variables.css` | you | Edit `var()` references if you rename tokens. |
+| `src/css/global/elements.css` | you | Same. |
+| `src/css/global/tokens.css` | swatchkit | Regenerated every build. |
+| `src/css/utilities/tokens.css` | swatchkit | Regenerated every build. |
+| `src/css/swatchkit-ui.css` | you | Docs UI styling. Safe to customize. |
+| `src/css/swatchkit-preview.css` | you | Preview page styling. Safe to customize. |
+| `swatchkit/_swatchkit.html` | you | Layout template. `scaffold --force` overwrites it. |
+| `swatchkit/_preview.html` | you | Preview template. Same caveat. |
+| `swatchkit/tokens/*.html` | swatchkit | Regenerated every build. |
+| `swatchkit/swatches/**/index.html` | you | Your swatches. |
+| `swatchkit/swatches/**/index.js` | you | Your JS swatches. |
+| `swatchkit/swatches/**/description.html` | you | Optional, shown above the iframe in the library. |
+| `swatchkit/swatches/**/*` (other files) | you | Copied as sibling assets. |
+
+## Using with a framework
+
+SwatchKit only ever writes inside its own output directory — never the rest of `dist/`. If your framework (Vite, Astro, etc.) cleans `dist/` on build, run it first and swatchkit after:
+
+```json
+"scripts": {
+  "build": "vite build && swatchkit"
+}
+```
+
+In watch mode, SwatchKit polls for its output directory and rebuilds if it was wiped by an external tool.
+
+## Design tokens (optional)
+
+Edit `tokens/*.json` and SwatchKit auto-generates CSS. Supported token types:
+
+- **Colors** (`colors.json`): palettes
+- **Fluid typography** (`text-sizes.json`): `clamp()`-based type scales
+- **Fluid spacing** (`spacing.json`): `clamp()`-based spacing
+- **Modular text leading** (`text-leading.json`): line-height via `pow()` scales
+- **Fonts & weights** (`fonts.json`, `text-weights.json`)
+- **Viewports** (`viewports.json`): breakpoints used by fluid scales
+
+For `text-sizes.json` and `spacing.json`, you can specify static, fluid, or auto-fluid values:
 
 ```json
 {
   "title": "Text Sizes",
   "fluidRatio": 1.25,
   "items": [
-    { "name": "base", "value": "1rem" }, // Static: 1rem always
-    { "name": "md", "min": 16, "max": 20 }, // Fluid: 16px -> 20px
-    { "name": "lg", "max": 24 }, // Auto: 19.2px -> 24px (24 / 1.25)
-    { "name": "xl", "min": 32 }, // Auto: 32px -> 40px (32 * 1.25)
-    { "name": "jumbo", "max": 64, "fluidRatio": 1.5 } // Auto: 42.6px -> 64px (64 / 1.5)
+    { "name": "base", "value": "1rem" },
+    { "name": "md", "min": 16, "max": 20 },
+    { "name": "lg", "max": 24 }
   ]
 }
 ```
 
-**Generated CSS:**
-
-```css
-:root {
-  --s-base: 1rem;
-  --s-md: clamp(1rem, ..., 1.25rem);
-  --s-lg: clamp(1.2rem, ..., 1.5rem);
-  --s-xl: clamp(2rem, ..., 2.5rem);
-  --s-jumbo: clamp(2.66rem, ..., 4rem);
-}
-```
-
-### 4. Hybrid Text Leading
-
-You can mix modular scales with manual overrides.
-
-**Example (`tokens/text-leading.json`):**
-
-```json
-{
-  "base": 1,
-  "ratio": 1.2,
-  "items": [
-    { "name": "tight", "step": -1 }, // Modular: 1 * (1.2 ^ -1)
-    { "name": "flat", "value": 1 }, // Manual: 1
-    { "name": "loose", "step": 1 } // Modular: 1 * (1.2 ^ 1)
-  ]
-}
-```
-
-### 5. CSS Workflow
-
-SwatchKit generates `css/global/tokens.css` with your design tokens. Your `css/main.css` imports this file along with layout primitives:
-
-```css
-@import "global/index.css";
-@import "compositions/index.css";
-@import "utilities/index.css";
-@import "swatches/index.css";
-
-/* Your app styles below */
-```
-
-The pattern library uses **your stylesheet** (`main.css`), so components render exactly as they will in your app.
-
-**Documentation Styling:**
-The sidebar and documentation layout are styled by `css/swatchkit-ui.css`. This file is separate from your app styles so you can customize the docs UI without affecting your production CSS.
-
-### 6. Custom Layouts
-
-When you run `swatchkit scaffold`, we create `swatchkit/_swatchkit.html`.
-**You own this file.**
-
-- Link to your own stylesheets.
-- Add custom fonts, scripts, or meta tags.
-- Change the HTML structure, logo, or classes.
-
-SwatchKit injects content into the `<!-- PATTERNS -->`, `<!-- SIDEBAR_LINKS -->`, and `<!-- HEAD_EXTRAS -->` placeholders.
-
-## How It Works
-
-Understanding the build pipeline helps you know which files to edit and which are generated.
-
-### 1. `swatchkit scaffold` (Scaffolding)
-Copies "blueprints" into your project to get you started. Scaffold tracks a manifest of every file it manages (token JSONs, CSS blueprints, layout templates) so it can report what's new, changed, or up to date.
-
-*   **Fresh project:** Creates directories and copies all blueprint files.
-*   **Already scaffolded:** Prints a status report comparing your files to the latest blueprints. Suggests `--force` if anything has changed.
-*   **`--force`:** Overwrites all scaffold-managed files with the latest blueprints. Your custom swatch HTML files and any CSS files without blueprint counterparts are never touched.
-*   **`--dry-run`:** Shows what would happen without writing anything.
-
-Files created:
-*   **`tokens/*.json`**: These are your **Source of Truth**. You edit these files.
-*   **`css/`**: Copies static CSS files (`main.css`, `reset.css`, compositions, etc.). **You own these files**.
-*   **`swatchkit/`**: Sets up the documentation structure, layout templates, and token display patterns.
-
-### 2. `swatchkit` (Build Process)
-Compiles your documentation site into `dist/swatchkit/`.
-
-1.  **Reads JSON Tokens**: Scans `tokens/*.json` and calculates fluid typography/spacing.
-2.  **Generates CSS**: Creates `css/global/tokens.css` and `css/utilities/tokens.css`. **Do not edit these files**; they are overwritten every build.
-3.  **Copies Assets**: Copies your `css/` folder (including your manually edited `main.css`, `global/variables.css`, and `global/elements.css`) to the output folder.
-4.  **Scans Patterns**: Finds all HTML files in `swatchkit/` and stitches them into the documentation site. Each swatch folder becomes a directory in the output with its own `index.html` and any sibling assets (CSS, JS, images) copied alongside.
-5.  **Generates Preview Pages**: Creates full-screen preview pages at `preview/{section}/{id}/index.html` so each swatch can be viewed in isolation.
-
-### Global Styles & Variables
-SwatchKit includes sensible defaults in `css/global/variables.css` and `css/global/elements.css`.
-*   These are **static files** copied to your project during `scaffold` and **enabled by default**.
-*   Variable references use the default token names from `tokens/*.json`. If you rename any tokens, update the `var()` references in these files to match.
-*   Both files are yours to edit — add your own variables and element styles freely.
-
-### Upgrading an existing project
-
-Run `swatchkit scaffold` to see a report of what's new or changed versus the latest blueprints. Run `swatchkit scaffold --force` to apply updates — modified files are backed up to `.bak` before being overwritten, so your changes are not lost.
-
-**Note on the `_layout.html` → `_swatchkit.html` rename:** if you had a customized `_layout.html`, scaffold will create a new `_swatchkit.html` from the latest template but will not touch your old `_layout.html`. Copy your customizations from `_layout.html` into `_swatchkit.html` manually, then delete the old file.
-
-### What is Safe to Edit?
-
-| File / Folder | Safe to Edit? | Notes |
-| :--- | :--- | :--- |
-| `tokens/*.json` | ✅ **YES** | Your source of truth. Safe. |
-| `css/main.css` | ✅ **YES** | Your entry point. Safe. |
-| `css/global/variables.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
-| `css/global/elements.css` | ✅ **YES** | You own this. Update var() references if you rename tokens. |
-| `css/global/tokens.css` | 🚫 **NO** | Overwritten by every build. |
-| `css/utilities/tokens.css` | 🚫 **NO** | Overwritten by every build. |
-| `css/swatchkit-ui.css` | ✅ **YES** | Styles for the SwatchKit docs UI. Safe to customize. |
-| `css/swatchkit-preview.css` | ✅ **YES** | Styles for swatch preview pages (e.g. the grid background). Safe to customize. |
-| `swatchkit/_swatchkit.html`| ✅ **YES** | Safe during normal use. `scaffold --force` overwrites all scaffold-managed files, including this one. |
-| `swatchkit/_preview.html`| ✅ **YES** | Same as `_swatchkit.html` — safe unless you run `scaffold --force`. |
-| `swatchkit/tokens/*.html`| 🚫 **NO** | Overwritten by `swatchkit build` (visual previews). |
-
-## CLI Reference
-
-```bash
-swatchkit [command] [options]
-```
-
-### Commands
-
-- `swatchkit new`: Creates `swatchkit.config.js`. Prompts for your CSS directory location. Run this first in any new project.
-- `swatchkit new --cssDir ./src/css`: Non-interactive — creates config without prompting.
-- `swatchkit new --force`: Overwrites an existing config (backs up the old one).
-- `swatchkit scaffold`: Copies CSS blueprints, token JSON files, and layout templates into your project using the settings from `swatchkit.config.js`. If already scaffolded, prints a status report.
-- `swatchkit scaffold --force`: Overwrites all scaffold-managed files with the latest blueprints (with backups).
-- `swatchkit scaffold --dry-run`: Shows what would be created or changed without writing anything.
-- `swatchkit` (Default): Builds the pattern library.
-
-### Flags
-
-| Flag        | Short | Description                                                        |
-| :---------- | :---- | :----------------------------------------------------------------- |
-| `--watch`   | `-w`  | Watch files and rebuild on change.                                 |
-| `--config`  | `-c`  | Path to config file.                                               |
-| `--input`   | `-i`  | Pattern directory (Default: `swatchkit/`).                         |
-| `--outDir`  | `-o`  | Output directory (Default: `dist/swatchkit`).                      |
-| `--cssDir`  |       | CSS directory. Used by `swatchkit new` to set the scaffold destination and stored in `swatchkit.config.js`. If you skip `swatchkit new` and have no config, the build falls back to `./css`. |
-| `--force`   | `-f`  | Overwrite existing files (`new`: config, `scaffold`: blueprints).  |
-| `--dry-run` |       | Show what scaffold would create or change, without writing.        |
-| `--help`    | `-h`  | Show help message.                                                 |
-| `--version` | `-v`  | Show version number.                                               |
-
-## Configuration
-
-SwatchKit looks for config in this order:
-
-1. `swatchkit.config.cjs` (CommonJS)
-2. `swatchkit.config.mjs` (ESM)
-3. `swatchkit.config.js` (depends on project's `"type"` in package.json)
-
-If your project has `"type": "module"` and you want to keep CommonJS config syntax, use `.cjs`.
-
-### CommonJS projects (no "type": "module")
-
-```javascript
-// swatchkit.config.js
-module.exports = {
-  cssDir: "./css",
-  cssCopy: true,
-};
-```
-
-### ESM projects ("type": "module")
-
-If your project uses JS swatches with `import`/`export`, add `"type": "module"` to package.json. Then config must use ESM syntax:
-
-```javascript
-// swatchkit.config.js
-export default {
-  cssDir: "./css",
-  cssCopy: false,
-};
-```
-
-Or keep CommonJS config by using `.cjs`:
-
-```javascript
-// swatchkit.config.cjs
-module.exports = {
-  cssDir: "./css",
-  cssCopy: true,
-};
-```
-
-### Config options
-
-```javascript
-module.exports = {
-  // Override default pattern directory
-  input: "./patterns",
-
-  // Override default output directory
-  outDir: "./dist/patterns",
-
-  // Override CSS directory
-  cssDir: "./assets/css",
-
-  // Override tokens directory (JSON token definitions)
-  tokensDir: "./src/tokens",
-
-  // Skip copying CSS into SwatchKit's output directory.
-  // When false, SwatchKit references CSS at cssPath instead of copying it.
-  // See "Common Workflows" below for when to use this.
-  cssCopy: false,
-
-  // Relative path from SwatchKit's HTML to your CSS files.
-  // Only relevant when cssCopy is false.
-  // Defaults to "../<basename of cssDir>/" (e.g., "../css/" if cssDir is "./src/css").
-  // Set explicitly if your deployed CSS lives at a different path.
-  cssPath: "../css/",
-
-  // Exclude files (supports glob patterns)
-  exclude: ["*.test.js", "temp*"],
-
-  // Render callbacks for customizing generated markup.
-  // If omitted, SwatchKit uses its default rendering.
-  // renderSidebarSection: ({ category, categorySlug, items }) => string,
-  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
-
-  // Enable/disable individual token HTML swatches (CSS tokens still generated regardless).
-  tokenSwatches: {
-    colors: true,
-    typography: true,
-    spacing: true,
-    fonts: true,
-    textWeights: true,
-    textLeading: true,
-    viewports: true,
-  },
-};
-```
-
-## Common Workflows
-
-### Deploy alongside your project
-
-If your build tool (Vite, Astro, etc.) already outputs CSS to `dist/`, you don't need SwatchKit to copy it again. Set `cssCopy: false` and SwatchKit's HTML will reference your existing CSS.
-
-```javascript
-// swatchkit.config.js
-module.exports = {
-  cssDir: "./src/css",
-  cssCopy: false,
-};
-```
-
-```
-dist/
-├── css/                    # Your build tool puts CSS here
-│   ├── main.css
-│   └── global/
-│       └── tokens.css
-├── index.html              # Your project
-└── swatchkit/
-    └── index.html          # References ../css/main.css
-```
-
-SwatchKit derives the default `cssPath` from your `cssDir` name. If `cssDir` is `"./src/css"`, it defaults to `"../css/"`. If `cssDir` is `"./styles"`, it defaults to `"../styles/"`.
-
-If your deployed CSS ends up somewhere else (e.g., Vite hashes it into `dist/assets/`), set `cssPath` explicitly:
-
-```javascript
-module.exports = {
-  cssDir: "./src/css",
-  cssCopy: false,
-  cssPath: "../assets/",
-};
-```
-
-### Local dev only (self-contained)
-
-If SwatchKit is just a development tool and you don't want it in `dist/`, set `outDir` to a separate directory. Keep `cssCopy` enabled (the default) so the output is fully self-contained.
-
-```javascript
-// swatchkit.config.js
-module.exports = {
-  cssDir: "./src/css",
-  outDir: "swatchkit-dist",
-};
-```
-
-```
-my-project/
-├── dist/                   # Your production build (no SwatchKit)
-│   └── ...
-└── swatchkit-dist/         # Self-contained, serve locally during dev
-    ├── css/
-    │   ├── main.css
-    │   └── global/
-    │       └── tokens.css
-    └── index.html
-```
-
-You can serve `swatchkit-dist/` locally during development without affecting your production build.
-
-## Using with a Framework
-
-SwatchKit outputs to `dist/swatchkit/` by default. If your framework (Vite, Astro, etc.) cleans the `dist/` directory during its build, run SwatchKit **after** your framework build:
-
-```json
-{
-  "scripts": {
-    "build": "vite build && swatchkit",
-    "dev": "vite dev & swatchkit -w"
-  }
-}
-```
-
-In watch mode, SwatchKit detects when its output directory is deleted by an external tool and automatically rebuilds.
-
-SwatchKit only ever writes inside its own output subdirectory — it will never modify or delete other files in `dist/`.
-
-### Example: Custom Build Pipeline
-
-If you are rolling your own build system (e.g. using `onchange` to copy files), use a tool like `npm-run-all` to run your watchers in parallel.
-
-**swatchkit.config.js**
-
-```javascript
-module.exports = {
-  cssDir: "./src/css",
-  cssCopy: false, // Don't copy CSS (your build tool handles it)
-};
-```
-
-**package.json**
-
-```json
-{
-  "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp -r src/ dist/",
-    "swatchkit": "swatchkit",
-    "swatchkit:watch": "swatchkit --watch",
-    "dev:app": "onchange 'src/**/*' -- npm run build",
-    "dev": "npm-run-all --parallel dev:app swatchkit:watch"
-  },
-  "devDependencies": {
-    "npm-run-all": "^4.1.5",
-    "onchange": "^7.1.0"
-  }
-}
-```
-
-### Watch mode and file watchers
-
-SwatchKit generates files into your source tree during each build — CSS token files (`css/global/tokens.css`, `css/utilities/tokens.css`) and token documentation HTML (`swatchkit/tokens/*.html`). To avoid triggering external file watchers unnecessarily, SwatchKit compares generated content against the existing file and **skips the write when nothing has changed**. This means most rebuilds (e.g., editing an HTML swatch) won't touch your CSS directory at all, preventing infinite rebuild loops when running alongside tools like `onchange`, `chokidar`, or framework dev servers that watch `src/`.
+`value` is static. `min`/`max` is fully fluid. Just one side triggers auto-fluid (other side derived from `fluidRatio`, default 1.125).
 
 ## Acknowledgements
 
-The CSS compositions included by default in SwatchKit are adapted from [Every Layout](https://every-layout.dev/) by Heydon Pickering and Andy Bell. Highly recommend their documentation for a deep dive into their brilliant CSS techniques.
+The CSS compositions included by default are adapted from [Every Layout](https://every-layout.dev/) by Heydon Pickering and Andy Bell.
