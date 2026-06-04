@@ -23,6 +23,8 @@
 - what else can be progressively enhanced? checkboxes?
 - <https://www.youtube.com/watch?v=5uhIiI9Ld5M&t=19m40s> do we need to support a different ratio for max viewports vs min for clamp calculation!?
 
+- ::search-text && ::search-text:current! add to elements.css for chrome additions. nice progressive enhacement
+
 ## UI
 
 - scroll to top button
