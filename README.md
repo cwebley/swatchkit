@@ -108,6 +108,31 @@ export default html`
 - `index.js` is reserved for SwatchKit and is not copied as a preview asset. Other `.js` files in the folder are copied (e.g. `demo.js` for browser-side scripts).
 - For JavaScript swatches that use `import` / `export`, set `"type": "module"` in your `package.json`. Without that, the swatch runs as CommonJS and `import` syntax is a parse error.
 
+## The renderer contract
+
+A component renderer is a function with a specific shape. This is what makes the shared-between-app-and-library pattern work.
+
+- **Signature:** `function renderX(props) → string`
+- **Pure:** no side effects, no I/O, no global state
+- **Deterministic:** same input → same output, every time
+- **Self-contained output:** the returned string is a complete HTML fragment
+
+Props are an object, destructured with defaults for optional fields. Document the shape with a comment above the function so callers know what to pass.
+
+Naming: `render<ComponentName>`. Verb-first makes the role obvious.
+
+```js
+// Pure, deterministic, no imports beyond the function's needs.
+export function renderButton({ label, href, variant = "primary" }) {
+  const className = variant === "outline" ? "button outline" : "button";
+  return href
+    ? `<a class="${className}" href="${href}">${label}</a>`
+    : `<button class="${className}">${label}</button>`;
+}
+```
+
+For a full project that uses this contract end-to-end, see [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
+
 ## Two ways to ship CSS
 
 SwatchKit's CSS behavior is controlled by `cssCopy` in the config. The default is `true`; for integrated apps you'll usually want `false`.
@@ -129,7 +154,7 @@ dist/swatchkit/
 
 Use this when the pattern library is the deliverable, or when you're just kicking the tires.
 
-### Integrated (`cssCopy: false`) — the test-10 case
+### Integrated (`cssCopy: false`)
 
 SwatchKit skips the copy and writes `<link>` tags pointing at `cssPath` instead. You put the CSS in `dist/css/` once, the library references it, and your app's HTML references it too. No duplication.
 
@@ -171,6 +196,8 @@ For an integrated app, your `package.json` typically chains both steps:
 `build:swatchkit` runs first so any freshly regenerated `src/css/global/tokens.css` and `src/css/utilities/tokens.css` get picked up by `build:css`. Even with `cssCopy: false`, SwatchKit still regenerates those token files inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`.
 
 The `cp -r src/css dist/css` step is fine for development and small projects. For production, replace it with your CSS bundler (Lightning CSS, PostCSS, esbuild, etc.) — the only contract the swatchkit HTML depends on is a stable `dist/css/main.css`.
+
+For a complete walkthrough of an integrated setup (with the full `bundle-css.js`, `bundle-js.js`, and `build-site.js` scripts), see [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
 
 ## Configuration
 
