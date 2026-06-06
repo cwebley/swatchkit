@@ -871,7 +871,7 @@ async function build(settings) {
     console.error(
       `Error: SwatchKit directory not found at ${settings.swatchkitDir}`,
     );
-    console.error('Run "swatchkit init" to get started.');
+    console.error('Run "swatchkit scaffold" to get started.');
     process.exit(1);
   }
 

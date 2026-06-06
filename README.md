@@ -178,26 +178,26 @@ dist/
 
 `cssPath` is the path from swatchkit's HTML to the CSS. The default (when omitted) is `../<basename of cssDir>/` — so `cssDir: "./src/css"` defaults to `"../css/"`. For most integrated projects, that's all you need. Set it explicitly only if your build puts CSS somewhere other than `dist/css/`.
 
-For an integrated app, your `package.json` typically chains both steps:
+For an integrated app, your `package.json` typically chains both steps. The canonical setup uses esbuild for the CSS+JS bundling step — see the [hand-rolled app setup guide](./docs/app-setup-handrolled.md) for the full reference:
 
 ```json
 {
   "scripts": {
-    "clean": "rm -rf dist",
+    "clean": "node scripts/clean.js",
     "build:site": "node scripts/build-site.js",
     "build:swatchkit": "swatchkit",
-    "build:css": "mkdir -p dist && cp -r src/css dist/css",
-    "build": "npm run clean && npm run build:site && npm run build:swatchkit && npm run build:css",
+    "build:assets": "node scripts/build-assets.js",
+    "build": "npm run clean && npm run build:site && npm run build:swatchkit && npm run build:assets",
     "patterns": "swatchkit"
   }
 }
 ```
 
-`build:swatchkit` runs first so any freshly regenerated `src/css/global/tokens.css` and `src/css/utilities/tokens.css` get picked up by `build:css`. Even with `cssCopy: false`, SwatchKit still regenerates those token files inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`.
+`build:swatchkit` runs first so any freshly regenerated `src/css/global/tokens.css` and `src/css/utilities/tokens.css` get picked up by `build:assets`. Even with `cssCopy: false`, SwatchKit still regenerates those token files inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`.
 
-The `cp -r src/css dist/css` step is fine for development and small projects. For production, replace it with your CSS bundler (Lightning CSS, PostCSS, esbuild, etc.) — the only contract the swatchkit HTML depends on is a stable `dist/css/main.css`.
+If you just want to kick the tires: `cp -r src/css dist/css` works in place of `build-assets.js`, but it doesn't bundle `@import`s and doesn't minify — use it for a prototype, then switch to the esbuild flow for anything beyond that.
 
-For a complete walkthrough of an integrated setup (with the full `bundle-css.js`, `bundle-js.js`, and `build-site.js` scripts), see [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
+For a complete walkthrough of an integrated setup (with the full `clean.js`, `build-site.js`, and `build-assets.js` scripts), see [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
 
 ## Configuration
 

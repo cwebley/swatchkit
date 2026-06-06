@@ -1,8 +1,10 @@
 # Setting up an app on swatchkit (hand-rolled)
 
-A reference for setting up a project that uses swatchkit as a pattern library, without a build framework. You write three small build scripts yourself, and `npm run build` chains them into a deployable static site.
+A reference for setting up a project that uses swatchkit as a pattern library, without a build framework. You write a few small build scripts yourself, and `npm run build` chains them into a deployable static site.
 
-Use this when you want a static site, total control over output, and the smallest possible dep tree. If you want HMR, code splitting, or auto-cache-busting, use a framework-driven setup instead.
+The build uses [esbuild](https://esbuild.github.io/) for CSS and JS bundling, so you get real parsers, source maps, and minification without writing a custom bundler.
+
+Use this when you want a static site, total control over output, and a small dep tree. If you want HMR, code splitting, or framework-style dev experience, use a framework-driven setup instead.
 
 ---
 
@@ -20,9 +22,9 @@ my-project/
 ├── package.json
 ├── swatchkit.config.js
 ├── scripts/                          ← your build scripts (Step 3)
+│   ├── clean.js
 │   ├── build-site.js
-│   ├── bundle-css.js
-│   └── bundle-js.js
+│   └── build-assets.js
 ├── src/
 │   ├── components/                   ← your renderers
 │   │   ├── button.js
@@ -67,30 +69,32 @@ Everything in `global/`, `compositions/`, `utilities/` (under both `src/css/` an
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "rm -rf dist",
+    "clean": "node scripts/clean.js",
     "build:site": "node scripts/build-site.js",
-    "build:js": "node scripts/bundle-js.js",
-    "build:css": "node scripts/bundle-css.js",
     "build:swatchkit": "swatchkit",
-    "build": "npm run clean && npm run build:site && npm run build:js && npm run build:swatchkit && npm run build:css",
+    "build:assets": "node scripts/build-assets.js",
+    "build": "npm run clean && npm run build:site && npm run build:swatchkit && npm run build:assets",
+    "build:prod": "npm run clean && npm run build:site && npm run build:swatchkit && node scripts/build-assets.js --prod",
     "dev": "npx --yes http-server dist -c-1 -p 8080 -o",
     "patterns": "swatchkit"
   },
   "devDependencies": {
+    "esbuild": "^0.28.0",
     "swatchkit": "^4.0.0"
   }
 }
 ```
 
-The `build` chain runs in this order:
+The build chain runs in this order, and the order is load-bearing:
 
-1. **`clean`** — wipe `dist/`.
+1. **`clean`** — wipe `dist/` (cross-platform, works on Windows too).
 2. **`build:site`** — render `src/pages/home.js` → `dist/index.html` (the main app).
-3. **`build:js`** — bundle `src/js/main.js` → `dist/js/main.js` (the main app's JS).
-4. **`build:swatchkit`** — run the `swatchkit` CLI. This regenerates `src/css/global/tokens.css` and `src/css/utilities/tokens.css` (from `tokens/*.json`), then writes the pattern library to `dist/swatchkit/`.
-5. **`build:css`** — bundle `src/css/main.css` → `dist/css/main.css`, copy `swatchkit-ui.css` and `swatchkit-preview.css` to `dist/css/`.
+3. **`build:swatchkit`** — run the `swatchkit` CLI. This regenerates `src/css/global/tokens.css` and `src/css/utilities/tokens.css` from `tokens/*.json`, then writes the pattern library to `dist/swatchkit/`.
+4. **`build:assets`** — esbuild bundles `src/css/main.css` → `dist/css/main.css` and `src/js/main.js` → `dist/js/main.js`. Also copies `swatchkit-ui.css` and `swatchkit-preview.css` to `dist/css/`.
 
-`build:swatchkit` runs *before* `build:css` so the freshly regenerated token CSS files get included in the final bundle.
+`build:swatchkit` *must* run before `build:assets` — the freshly regenerated token CSS files need to exist before esbuild reads `main.css` (which `@import`s them). The full build chain handles this; if you run the steps individually, keep the order.
+
+`build:prod` is the deployable artifact: same chain, but `build-assets.js` runs with `--prod`, which turns on minification and turns off source maps. See [Source maps](#source-maps) below.
 
 `dev` is a plain static server with caching disabled — run it after `npm run build` to preview the result. The `-c-1` flag prevents the browser from serving stale `main.css`/`main.js` after rebuilds.
 
@@ -112,7 +116,19 @@ export default {
 
 ## Step 3: The build scripts
 
-Three small Node scripts, each doing one thing. Drop them in `scripts/` and chain them from `package.json` (already done in Step 1).
+Three small Node scripts and one esbuild call. Drop the scripts in `scripts/` and chain them from `package.json` (already done in Step 1).
+
+### `scripts/clean.js`
+
+Cross-platform replacement for `rm -rf dist`. Works on Windows, macOS, and Linux without depending on a Unix shell being available.
+
+```js
+import fs from "node:fs";
+
+fs.rmSync("dist", { recursive: true, force: true });
+
+console.log("[clean] Removed dist/");
+```
 
 ### `scripts/build-site.js`
 
@@ -133,128 +149,107 @@ console.log("[site] Built dist/index.html");
 
 The script imports `home()` from your `src/pages/home.js` and writes its return value to `dist/index.html`. The whole app HTML is generated at build time — the browser never executes the renderers.
 
-### `scripts/bundle-css.js`
+The output references the stable output names:
 
-Reads `src/css/main.css`, inlines every `@import` statement into one file at `dist/css/main.css`. Also copies the standalone files (`swatchkit-ui.css`, `swatchkit-preview.css`) that the swatchkit pages reference by name.
+```html
+<link rel="stylesheet" href="./css/main.css" />
+<script type="module" src="./js/main.js"></script>
+```
+
+### `scripts/build-assets.js`
+
+Replaces a hand-rolled CSS bundler and a hand-rolled JS bundler with a single esbuild call. esbuild is a real parser, so `@import` (with media queries, `@layer`, etc.), normal `import`/`export`, and third-party modules all just work. Minification and source maps are one option each.
 
 ```js
 import fs from "node:fs";
 import path from "node:path";
+import * as esbuild from "esbuild";
 
-const SRC_CSS_DIR = path.resolve(import.meta.dirname, "..", "src", "css");
-const DIST_CSS_DIR = path.resolve(import.meta.dirname, "..", "dist", "css");
-const ENTRY_FILE = path.join(SRC_CSS_DIR, "main.css");
-const OUTPUT_FILE = path.join(DIST_CSS_DIR, "main.css");
+const isProduction =
+  process.argv.includes("--prod") || process.env.NODE_ENV === "production";
 
-const STANDALONE_FILES = ["swatchkit-ui.css", "swatchkit-preview.css"];
+// Standalone CSS files referenced by name in the SwatchKit layouts.
+// They are NOT imported by main.css, so esbuild never sees them — copy them.
+const STANDALONE_CSS = ["swatchkit-ui.css", "swatchkit-preview.css"];
 
-function resolveImports(filePath, seen = new Set()) {
-  if (seen.has(filePath)) {
-    console.warn(`  Warning: Circular import, skipping: ${filePath}`);
-    return "";
-  }
-  seen.add(filePath);
+await esbuild.build({
+  entryPoints: ["src/css/main.css", "src/js/main.js"],
+  bundle: true,
+  outdir: "dist",
+  outbase: "src",
+  minify: isProduction,
+  sourcemap: !isProduction, // dev-only maps; omit from production output
+  format: "esm",
+  // Emit referenced assets (fonts/images via url()) next to the output
+  // instead of failing, in case a dependency ships them.
+  loader: {
+    ".woff": "file",
+    ".woff2": "file",
+    ".ttf": "file",
+    ".eot": "file",
+    ".svg": "file",
+    ".png": "file",
+    ".jpg": "file",
+    ".gif": "file",
+  },
+  logLevel: "info",
+});
 
-  if (!fs.existsSync(filePath)) {
-    console.warn(`  Warning: Not found, skipping: ${filePath}`);
-    return "";
-  }
-
-  const content = fs.readFileSync(filePath, "utf-8");
-  const dir = path.dirname(filePath);
-  const importRegex = /@import\s+(?:url\()?["']([^"']+)["']\)?;?/g;
-
-  return content.replace(importRegex, (_match, importPath) => {
-    const absolutePath = path.resolve(dir, importPath);
-    const relativePath = path.relative(SRC_CSS_DIR, absolutePath);
-    console.log(`  Inlining: ${relativePath}`);
-    return `/* === ${relativePath} === */\n${resolveImports(absolutePath, seen)}\n`;
-  });
-}
-
-console.log("Bundling CSS: src/css/ → dist/css/\n");
-
-fs.mkdirSync(DIST_CSS_DIR, { recursive: true });
-
-const bundled = resolveImports(ENTRY_FILE);
-fs.writeFileSync(OUTPUT_FILE, bundled);
-const sizeKB = (fs.statSync(OUTPUT_FILE).size / 1024).toFixed(1);
-console.log(`\n  → dist/css/main.css (${sizeKB} KB)`);
-
-for (const file of STANDALONE_FILES) {
-  const src = path.join(SRC_CSS_DIR, file);
-  const dest = path.join(DIST_CSS_DIR, file);
+fs.mkdirSync(path.join("dist", "css"), { recursive: true });
+for (const file of STANDALONE_CSS) {
+  const src = path.join("src", "css", file);
+  const dest = path.join("dist", "css", file);
   if (fs.existsSync(src)) {
     fs.copyFileSync(src, dest);
-    console.log(`  → dist/css/${file} (copied)`);
+    console.log(`[assets] Copied dist/css/${file}`);
   }
 }
 
-console.log("\nDone!");
+console.log("[assets] Built CSS and JS with esbuild");
 ```
 
-The bundler follows `@import` statements recursively and inlines them into a single file. It uses a regex on `@import "path"` and `@import url("path")` — both forms work. Standalone files (which the swatchkit pages reference by name) are copied verbatim.
+With `outbase: "src"`, esbuild preserves the source folder structure in the output:
 
-The output CSS isn't minified. To add minification, run the bundled string through `esbuild.transform({ loader: "css", minify: true })` before writing it.
+```
+dist/
+├── css/
+│   ├── main.css
+│   ├── main.css.map        (dev only)
+│   ├── swatchkit-ui.css      (copied)
+│   └── swatchkit-preview.css (copied)
+└── js/
+    ├── main.js
+    └── main.js.map         (dev only)
+```
 
-### `scripts/bundle-js.js`
+Both `build` and `build:prod` use this same script — the only difference is the `--prod` flag (or `NODE_ENV=production`), which flips `minify` to true and `sourcemap` to false.
 
-Reads `src/js/main.js`, inlines every relative `import` statement into one file at `dist/js/main.js`. Non-relative imports (bare module specifiers) are left in place — the browser will fail to resolve them, so don't use them.
+The `loader` config tells esbuild to copy font and image files (referenced via `url()` in CSS) into the output instead of failing. If your CSS doesn't reference external assets, this is a no-op.
+
+### Source maps
+
+A source map (`main.js.map`) is a separate JSON file linked from the bottom of the bundle by a comment:
 
 ```js
-import fs from "node:fs";
-import path from "node:path";
-
-const SRC_JS_DIR = path.resolve(import.meta.dirname, "..", "src", "js");
-const DIST_JS_DIR = path.resolve(import.meta.dirname, "..", "dist", "js");
-const ENTRY_FILE = path.join(SRC_JS_DIR, "main.js");
-const OUTPUT_FILE = path.join(DIST_JS_DIR, "main.js");
-
-const importRegex =
-  /import\s+(?:[\s\S]+?\s+from\s+)?["']([^"']+)["']\s*;?/g;
-
-function resolveImports(filePath, seen = new Set()) {
-  if (seen.has(filePath)) {
-    console.warn(`  Warning: Circular import, skipping: ${filePath}`);
-    return "";
-  }
-  seen.add(filePath);
-
-  if (!fs.existsSync(filePath)) {
-    console.warn(`  Warning: Not found, skipping: ${filePath}`);
-    return "";
-  }
-
-  const content = fs.readFileSync(filePath, "utf-8");
-  const dir = path.dirname(filePath);
-
-  return content.replace(importRegex, (_match, specifier) => {
-    if (!specifier.startsWith(".")) {
-      console.warn(`  Skipping non-relative import: ${specifier}`);
-      return _match;
-    }
-    const absolutePath = path.resolve(dir, specifier);
-    const relativePath = path.relative(SRC_JS_DIR, absolutePath);
-    console.log(`  Inlining: ${relativePath}`);
-    return `/* === ${relativePath} === */\n${resolveImports(absolutePath, seen)}\n`;
-  });
-}
-
-console.log("Bundling JS: src/js/ → dist/js/\n");
-
-fs.mkdirSync(DIST_JS_DIR, { recursive: true });
-
-const bundled = resolveImports(ENTRY_FILE);
-fs.writeFileSync(OUTPUT_FILE, bundled);
-const sizeKB = (fs.statSync(OUTPUT_FILE).size / 1024).toFixed(1);
-console.log(`\n  → dist/js/main.js (${sizeKB} KB)`);
-
-console.log("\nDone!");
+//# sourceMappingURL=main.js.map
 ```
 
-The bundler follows relative imports (`./foo`, `../bar`) recursively. Bare specifiers (e.g. `import x from "lodash"`) are left untouched — make sure your code only uses relative imports. The output preserves `export` statements, so the bundle is a valid ES module.
+Key facts:
 
-The output JS isn't minified. To add minification, run the bundled string through `esbuild.transform({ loader: "js", minify: true })` before writing it.
+- The map is **only fetched when DevTools is open.** Normal visitors never download it. It is a DevTools feature, not a runtime API — the JS engine ignores the comment during execution.
+- Shipping maps therefore has **zero runtime cost** and does **not** undermine minification: the executed file is still fully minified. The map just lets a developer's DevTools show original source + names.
+- The only real tradeoff is **source exposure**: the `.map` inlines the original source (`sourcesContent`), so anyone who fetches it can read your unminified code.
+
+esbuild `sourcemap` modes:
+
+| Mode | Comment in file | `.map` emitted | Use |
+| :--- | :--- | :--- | :--- |
+| `true` | yes | yes | full live-site debugging |
+| `"external"` | no | yes | maps uploaded to an error tracker (Sentry, etc.), not the server |
+| `"inline"` | data URI | no (embedded) | bloats the shipped file — avoid for prod |
+| `false` | no | no | no maps |
+
+**This script's default:** `sourcemap: !isProduction` — full maps in dev, none in the production bundle. This keeps prod output clean and avoids source exposure, while keeping dev fully debuggable. If you use Sentry-style error tracking, switch the production side to `"external"` and upload the `.map` files separately.
 
 ---
 
@@ -404,6 +399,8 @@ The entry stylesheet. Imports everything else:
 
 `global/`, `compositions/`, and `utilities/` come from `swatchkit scaffold`. `swatches/` and `theme.css` are yours — see Step 6 for how to extend them.
 
+esbuild reads this file as a real CSS entry: it follows the `@import`s, inlines them into one file, and supports media queries, `@layer`, and quoted/unquoted `url()` in the process.
+
 ### `src/js/main.js`
 
 The entry script for the main app. Imports any shared initialization and runs it:
@@ -414,7 +411,7 @@ import { initThemeToggle } from "./theme-toggle.js";
 initThemeToggle();
 ```
 
-The output of `scripts/bundle-js.js` is a single `dist/js/main.js` that contains this file plus all the modules it transitively imports. The browser loads it as `<script type="module" src="./js/main.js">` from your `home()` template.
+esbuild bundles this entry plus all the modules it transitively imports into a single `dist/js/main.js`. The browser loads it as `<script type="module" src="./js/main.js">` from your `home()` template.
 
 ### `swatchkit/swatches/<name>/index.js`
 
@@ -473,13 +470,8 @@ npm run build
 Output (in order):
 
 ```
+[clean] Removed dist/
 [site] Built dist/index.html
-  Inlining: global/index.css
-  Inlining: global/reset.css
-  …
-  → dist/css/main.css (51.3 KB)
-  → dist/css/swatchkit-ui.css (copied)
-  → dist/css/swatchkit-preview.css (copied)
 [SwatchKit] Starting build…
   Source:   …/swatchkit
   Output:   …/dist/swatchkit
@@ -489,9 +481,22 @@ Scanning HTML patterns (swatchkit/**/*.html)…
 Generated 20 preview pages in …/dist/swatchkit/preview
 Using custom layout: …/swatchkit/_swatchkit.html
 Build complete! Generated …/dist/swatchkit/index.html
+[assets] Built CSS and JS with esbuild
+  dist/css/main.css     29.0 kB
+  dist/js/main.js       0.8 kB
+[assets] Copied dist/css/swatchkit-ui.css
+[assets] Copied dist/css/swatchkit-preview.css
 ```
 
 Then `npm run dev` (or `npx http-server dist -c-1`) to preview. The main app is at `/`, the pattern library at `/swatchkit/`.
+
+For a deployable artifact:
+
+```bash
+npm run build:prod
+```
+
+Same chain, but `build-assets.js` is invoked with `--prod`: output is minified, no source maps. The `dev` server works the same way for previewing the prod build.
 
 ---
 
@@ -594,11 +599,13 @@ If you follow this, the same function works in your app, in the swatchkit pages,
 dist/
 ├── index.html                  ← main app (from src/pages/home.js)
 ├── css/
-│   ├── main.css                ← from src/css/main.css, @imports inlined
+│   ├── main.css                ← bundled by esbuild from src/css/main.css
+│   ├── main.css.map            (dev only)
 │   ├── swatchkit-ui.css        ← copied from src/css/
 │   └── swatchkit-preview.css   ← copied from src/css/
 ├── js/
-│   └── main.js                 ← from src/js/main.js, imports inlined
+│   ├── main.js                 ← bundled by esbuild from src/js/main.js
+│   └── main.js.map             (dev only)
 └── swatchkit/
     ├── index.html              ← pattern library index
     └── preview/
@@ -608,17 +615,122 @@ dist/
         └── utilities/…         ← one page per utility
 ```
 
-Both the main app and the swatchkit pages reference `dist/css/main.css` (via the relative path resolved from each page's location). The CSS file is generated once, used by both.
+Both the main app and the swatchkit pages reference `dist/css/main.css` (via the relative path resolved from each page's location). The CSS file is generated once, used by both. With `npm run build:prod`, the `.map` files are omitted and the CSS/JS are minified.
 
 ---
 
 ## Common tweaks
 
-- **Minification.** Add `esbuild` as a devDep and transform the bundled string with `minify: true` before writing. ~3 lines in each of `bundle-css.js` and `bundle-js.js`.
-- **Cache-busting.** Add a content hash to the output filenames (`main-abc123.css` instead of `main.css`) and update the references in `home()`. Requires plumbing a manifest through `build-site.js`.
+- **Cache-busting (opt-in).** The default stable filenames (`main.css`, `main.js`) match the references in `home()` and the SwatchKit templates. For long-lived cache headers, switch to hashed names:
+  ```js
+  entryNames: "[dir]/[name]-[hash]",
+  metafile: true,
+  ```
+  But hashed names require extra plumbing: `build-site.js` must read esbuild's `metafile` to learn the hashed names before writing `dist/index.html`, and the SwatchKit HTML expects `main.css`. Recommend keeping stable filenames unless your deploy target clearly benefits.
+- **Source maps in production.** Switch the production side of `sourcemap` to `"external"` and upload the `.map` files separately to your error tracker (Sentry, etc.). The shipped bundle won't have a `sourceMappingURL` comment, but the tracker will use the maps to show real source in stack traces.
+- **Different CSS/JS outputs.** Add more `entryPoints` to `build-assets.js` — esbuild handles multiple entries with one call. Each entry gets its own output under `dist/` based on its path under `src/`.
 - **A real dev server.** `npm run dev` (the `http-server` line in `package.json`) is a static file server with caching disabled. For something with HMR, switch to a framework-driven setup.
 - **More swatchkit sections.** Anything you add under `swatchkit/<section>/<item>/index.{js,html}` becomes a section in the sidebar automatically. See the main README's "The Magic Folder" section.
-- **CSS preprocessing.** Replace the `bundle-css.js` regex with a call to `esbuild.transform({ loader: "css" })` or `lightningcss`. The contract the swatchkit HTML depends on — a stable `dist/css/main.css` — stays the same.
+
+---
+
+## Appendix: Zero-dependency alternative
+
+For projects that refuse any dependency (not even esbuild), here's an explicit-concat CSS approach. Instead of `@import`, maintain an ordered list and concatenate — no regex, no `@import` parsing, no parser.
+
+```js
+// scripts/build-assets.js (zero-dep variant, CSS only)
+import fs from "node:fs";
+import path from "node:path";
+
+const order = [
+  "global/reset.css",
+  "global/tokens.css",
+  "global/variables.css",
+  "global/elements.css",
+  "compositions/index.css",
+  "utilities/index.css",
+  "swatches/index.css",
+  "theme.css",
+];
+
+const out = order
+  .map((rel) => fs.readFileSync(path.join("src/css", rel), "utf8"))
+  .join("\n");
+
+fs.mkdirSync("dist/css", { recursive: true });
+fs.writeFileSync("dist/css/main.css", out);
+```
+
+For JS, a zero-dep setup typically copies the entry verbatim to `dist/js/main.js` — the script can't recursively resolve `import` statements without a real bundler. So your `src/js/main.js` must not `import` from other local files; all initialization code lives in the entry itself.
+
+The tradeoff: you maintain the order array instead of `@import` lines, and you get no minification, no source maps, no third-party resolution. Acceptable for a purist zero-dep setup; esbuild is better for anything production-ish.
+
+---
+
+## From-scratch quickstart
+
+The sequence to stand up a new app with SwatchKit + esbuild quickly.
+
+```bash
+# 1. New project
+mkdir my-app && cd my-app
+npm init -y
+npm pkg set type=module
+
+# 2. Tooling
+npm install -D swatchkit esbuild
+
+# 3. SwatchKit config + scaffold
+npx swatchkit new --cssDir ./src/css
+npx swatchkit scaffold
+```
+
+Then set the integrated config:
+
+```js
+// swatchkit.config.js
+export default {
+  cssDir: "./src/css",
+  cssCopy: false,
+  cssPath: "../css/",
+};
+```
+
+Create the three scripts from the "Step 3" section above (`scripts/clean.js`, `scripts/build-site.js`, `scripts/build-assets.js`) and the `package.json` scripts block.
+
+Create the minimum app surface:
+
+```
+src/
+├── pages/home.js          # exports home() → app HTML string
+├── components/            # shared renderX(props) → HTML string
+├── css/main.css           # @imports global/compositions/utilities/swatches
+└── js/main.js             # imports + inits browser modules
+swatchkit/
+├── _swatchkit.html        # from scaffold
+├── _preview.html          # from scaffold
+└── swatches/<name>/index.js  # imports the same renderer as the app
+```
+
+Build and preview:
+
+```bash
+npm run build        # dev build (with source maps)
+npm run dev          # serve dist/ at :8080
+# or for a deployable artifact:
+npm run build:prod   # minified, no source maps
+```
+
+Result:
+
+```
+dist/
+├── index.html          # main app
+├── css/main.css        # bundled, both app + library link it
+├── js/main.js          # bundled
+└── swatchkit/          # pattern library, links ../css/main.css
+```
 
 ---
 
@@ -626,7 +738,6 @@ Both the main app and the swatchkit pages reference `dist/css/main.css` (via the
 
 This setup is great for static sites with a small to moderate number of components. It starts to feel limiting when:
 
-- You have dozens of components and the manual CSS/JS bundlers feel too narrow.
 - You want HMR while editing components.
 - You want TypeScript, JSX, or a real framework.
 - You want code splitting, content-hashed asset names, or service-worker-driven caching out of the box.
