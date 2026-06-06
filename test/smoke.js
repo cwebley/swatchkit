@@ -64,26 +64,35 @@ function freshDir(name) {
   return dir;
 }
 
-// 1. ESM project, swatchkit new + scaffold + build
-{
-  console.log("\n[1] ESM project, swatchkit new (--cssDir ./src/css)");
-  const dir = freshDir("1-esm-new");
-  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
-  runSwatchkit("new", dir, ["new", "--cssDir", "./src/css"]);
-  runSwatchkit("scaffold", dir, ["scaffold"]);
-  runSwatchkit("build", dir, []);
-  exists(path.join(dir, "src/css/main.css")) ? ok("src/css/main.css exists") : fail("src/css/main.css exists");
-  exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
-  exists(path.join(dir, "css")) ? fail("no stray root css/ dir", "found css/ at project root") : ok("no stray root css/ dir");
+function read(p) {
+  return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : "";
 }
 
-// 2. CJS project, swatchkit new + scaffold + build
+// 1. ESM project, swatchkit init + build
 {
-  console.log("\n[2] CJS project, swatchkit new (--cssDir ./src/css)");
-  const dir = freshDir("2-cjs-new");
+  console.log("\n[1] ESM project, swatchkit init (--cssDir ./src/css)");
+  const dir = freshDir("1-esm-init");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+  runSwatchkit("build", dir, []);
+  exists(path.join(dir, "src/css/main.css")) ? ok("src/css/main.css exists") : fail("src/css/main.css exists");
+  exists(path.join(dir, "src/css/global/tokens.css")) ? ok("global/tokens.css (user-owned) exists") : fail("global/tokens.css exists");
+  exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
+  exists(path.join(dir, "css")) ? fail("no stray root css/ dir", "found css/ at project root") : ok("no stray root css/ dir");
+  // No JSON tokens dir anymore
+  exists(path.join(dir, "tokens")) ? fail("no JSON tokens/ dir created") : ok("no JSON tokens/ dir created");
+  // utilities.css generated from token blocks
+  read(path.join(dir, "src/css/utilities/utilities.css")).includes(".color\\:color-primary")
+    ? ok("utilities.css generated with color utility")
+    : fail("utilities.css generated with color utility");
+}
+
+// 2. CJS project, swatchkit init + build
+{
+  console.log("\n[2] CJS project, swatchkit init (--cssDir ./src/css)");
+  const dir = freshDir("2-cjs-init");
   fs.writeFileSync(path.join(dir, "package.json"), CJS_PKG);
-  runSwatchkit("new", dir, ["new", "--cssDir", "./src/css"]);
-  runSwatchkit("scaffold", dir, ["scaffold"]);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
   runSwatchkit("build", dir, []);
   exists(path.join(dir, "src/css/main.css")) ? ok("src/css/main.css exists") : fail("src/css/main.css exists");
   exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
@@ -91,9 +100,8 @@ function freshDir(name) {
 }
 
 // 3. ESM project, hand-written export default config
-//    (this is the exact regression: Node 22 returns a Module namespace
-//    from require() of an ESM file. Without .default unwrap, cssDir
-//    silently falls back to ./css and the build writes to the wrong place.)
+//    (regression guard: Node 22+ returns a Module namespace from require()
+//    of an ESM file; without the .default unwrap, cssDir silently falls back.)
 {
   console.log("\n[3] ESM project, hand-written export default config (the regression case)");
   const dir = freshDir("3-esm-export");
@@ -102,11 +110,10 @@ function freshDir(name) {
     path.join(dir, "swatchkit.config.js"),
     'export default { cssDir: "./src/css", cssCopy: true };\n',
   );
-  runSwatchkit("scaffold", dir, ["scaffold"]);
+  runSwatchkit("init", dir, ["init"]);
   runSwatchkit("build", dir, []);
   exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists (regression: must NOT be missing)") : fail("dist/swatchkit/css/main.css exists");
   exists(path.join(dir, "css")) ? fail("no stray root css/ dir") : ok("no stray root css/ dir");
-  // Tokens should have been written to src/css, not root css/
   exists(path.join(dir, "src/css/global/tokens.css")) ? ok("tokens.css written to src/css/global/") : fail("tokens.css written to src/css/global/");
 }
 
@@ -119,7 +126,7 @@ function freshDir(name) {
     path.join(dir, "swatchkit.config.js"),
     'module.exports = { cssDir: "./src/css", cssCopy: true };\n',
   );
-  runSwatchkit("scaffold", dir, ["scaffold"]);
+  runSwatchkit("init", dir, ["init"]);
   runSwatchkit("build", dir, []);
   exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
 }
@@ -133,7 +140,7 @@ function freshDir(name) {
     path.join(dir, "swatchkit.config.cjs"),
     'module.exports = { cssDir: "./src/css", cssCopy: true };\n',
   );
-  runSwatchkit("scaffold", dir, ["scaffold"]);
+  runSwatchkit("init", dir, ["init"]);
   runSwatchkit("build", dir, []);
   exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
 }
@@ -147,9 +154,105 @@ function freshDir(name) {
     path.join(dir, "swatchkit.config.mjs"),
     'export default { cssDir: "./src/css", cssCopy: true };\n',
   );
-  runSwatchkit("scaffold", dir, ["scaffold"]);
+  runSwatchkit("init", dir, ["init"]);
   runSwatchkit("build", dir, []);
   exists(path.join(dir, "dist/swatchkit/css/main.css")) ? ok("dist/swatchkit/css/main.css exists") : fail("dist/swatchkit/css/main.css exists");
+}
+
+// 7. Token docs are generated for every token type
+{
+  console.log("\n[7] Token documentation pages generated from CSS blocks");
+  const dir = freshDir("7-token-docs");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+  runSwatchkit("build", dir, []);
+  const tokenTypes = ["colors", "fonts", "spacing", "text-sizes", "text-weights", "text-leading", "viewports"];
+  for (const t of tokenTypes) {
+    exists(path.join(dir, `dist/swatchkit/preview/tokens/${t}/index.html`))
+      ? ok(`token doc page: ${t}`)
+      : fail(`token doc page: ${t}`);
+  }
+  // viewports must NOT produce utilities; colors must.
+  const util = read(path.join(dir, "src/css/utilities/utilities.css"));
+  util.includes(".font-size\\:step-0") ? ok("font-size utility generated") : fail("font-size utility generated");
+  !util.includes("viewport-min") ? ok("viewports produce no utilities") : fail("viewports produce no utilities");
+}
+
+// 8. Theme variants + dedup + verbatim relational values
+{
+  console.log("\n[8] Theme-variant blocks: dedup utilities, verbatim relational values");
+  const dir = freshDir("8-theme-variants");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+  // Add a theme file with light/dark variant blocks of the same token.
+  const themeCss = `:root {
+  /* @swatchkit colors "Light Palette" */
+  --brand: oklch(0.6 0.15 250);
+  --brand-hover: oklch(from var(--brand) calc(l + 0.06) c h);
+  /* @swatchkit end */
+}
+[data-theme="dark"] {
+  /* @swatchkit colors "Dark Palette" */
+  --brand: oklch(0.7 0.15 250);
+  --brand-hover: oklch(from var(--brand) calc(l - 0.06) c h);
+  /* @swatchkit end */
+}
+`;
+  fs.writeFileSync(path.join(dir, "src/css/theme.css"), themeCss);
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    'export default { cssDir: "./src/css", cssCopy: true, tokenSources: ["./src/css/global/tokens.css", "./src/css/theme.css"] };\n',
+  );
+  runSwatchkit("build", dir, []);
+  const util = read(path.join(dir, "src/css/utilities/utilities.css"));
+  // --brand appears in both Light and Dark blocks → utility emitted exactly once
+  const count = (util.match(/\.color\\:brand \{/g) || []).length;
+  count === 1 ? ok("duplicate token utility deduped to 1") : fail("duplicate token utility deduped to 1", `got ${count}`);
+  // both variant doc pages exist
+  exists(path.join(dir, "dist/swatchkit/preview/tokens/light-palette/index.html")) ? ok("Light Palette doc page") : fail("Light Palette doc page");
+  exists(path.join(dir, "dist/swatchkit/preview/tokens/dark-palette/index.html")) ? ok("Dark Palette doc page") : fail("Dark Palette doc page");
+  // verbatim relational value preserved in docs
+  read(path.join(dir, "dist/swatchkit/preview/tokens/light-palette/index.html"))
+    .includes("oklch(from var(--brand) calc(l + 0.06) c h)")
+    ? ok("relational oklch value preserved verbatim")
+    : fail("relational oklch value preserved verbatim");
+}
+
+// 9. Build fails clearly on malformed token markers
+{
+  console.log("\n[9] Malformed @swatchkit markers fail the build");
+  const dir = freshDir("9-bad-markers");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+  // Missing @swatchkit end
+  fs.writeFileSync(
+    path.join(dir, "src/css/global/tokens.css"),
+    ':root {\n  /* @swatchkit colors "Broken" */\n  --x: #fff;\n}\n',
+  );
+  let failed7 = false;
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+  } catch (e) {
+    failed7 = true;
+  }
+  failed7 ? ok("build errors on unclosed @swatchkit block") : fail("build errors on unclosed @swatchkit block");
+}
+
+// 10. swatchkit no longer recognizes `new` / `scaffold`
+{
+  console.log("\n[10] Removed commands: new/scaffold are not special-cased");
+  const dir = freshDir("10-removed-cmds");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  // `new`/`scaffold` should be treated as the default (build) command, which
+  // errors because the project isn't initialized — i.e. they are NOT the old
+  // commands. We assert the build-style error path runs (non-zero exit).
+  let scaffoldFailed = false;
+  try {
+    execSync(`node "${SWATCHKIT}" scaffold`, { cwd: dir, stdio: "pipe" });
+  } catch (e) {
+    scaffoldFailed = true;
+  }
+  scaffoldFailed ? ok("`scaffold` is no longer a command (falls through to build, errors uninitialized)") : fail("`scaffold` removed");
 }
 
 // Cleanup

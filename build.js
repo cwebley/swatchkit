@@ -3,8 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const chokidar = require("chokidar");
-const { processTokens, generateTokenUtilities } = require("./src/tokens");
-const { generateTokenSwatches } = require("./src/generators");
+const { parseTokenBlocks } = require("./src/token-parser");
+const { generateUtilities, generateTokenDocs } = require("./src/generators");
 
 /**
  * SwatchKit Build Script
@@ -26,10 +26,8 @@ function parseArgs(args) {
 
   for (let i = 2; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "new") {
-      options.command = "new";
-    } else if (arg === "scaffold") {
-      options.command = "scaffold";
+    if (arg === "init") {
+      options.command = "init";
     } else if (arg === "-w" || arg === "--watch") {
       options.watch = true;
     } else if (arg === "-h" || arg === "--help") {
@@ -260,11 +258,18 @@ function resolveSettings(cliOptions, fileConfig) {
     ? path.resolve(cwd, fileConfig.cssDir)
     : path.join(cwd, "css");
 
-  // Token definitions directory (JSON files the user edits)
-  // Default: tokens/ at project root (separate from swatchkit/ UI)
-  const tokensDir = fileConfig.tokensDir
-    ? path.resolve(cwd, fileConfig.tokensDir)
-    : path.join(cwd, "tokens");
+  // Token sources (v5): CSS files that may contain @swatchkit token blocks.
+  // Default: the scaffolded global/tokens.css, plus the conventional
+  // tokens.css / tokens/*.css locations inside cssDir. Users add theme files
+  // explicitly (e.g. a Nova theme) when needed.
+  const cssDirRel = path.relative(cwd, cssDir) || ".";
+  const tokenSources =
+    fileConfig.tokenSources ||
+    [
+      `${cssDirRel}/global/tokens.css`,
+      `${cssDirRel}/tokens.css`,
+      `${cssDirRel}/tokens/*.css`,
+    ];
 
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
@@ -286,22 +291,11 @@ function resolveSettings(cliOptions, fileConfig) {
   const renderSwatchSection =
     fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
 
-  // Token swatch toggle config
-  const tokenSwatches = fileConfig.tokenSwatches || {
-    colors: true,
-    typography: true,
-    spacing: true,
-    fonts: true,
-    textWeights: true,
-    textLeading: true,
-    viewports: true,
-  };
-
   return {
     swatchkitDir,
     outDir,
     cssDir,
-    tokensDir,
+    tokenSources,
     exclude,
     cssCopy,
     cssPath,
@@ -315,16 +309,13 @@ function resolveSettings(cliOptions, fileConfig) {
 
     // Derived paths
     distCssDir: path.join(outDir, "css"),
-    distTokensCssFile: path.join(outDir, "css", "tokens.css"),
     distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
-    tokensCssFile: path.join(cssDir, "global", "tokens.css"),
+    utilitiesDir: path.join(cssDir, "utilities"),
     mainCssFile: path.join(cssDir, "main.css"),
     // Render callbacks
     renderSidebarSection,
     renderSwatchSection,
-    // Token swatch toggle
-    tokenSwatches,
   };
 }
 
@@ -347,23 +338,6 @@ function buildInitManifest(settings) {
   const manifest = [];
   const blueprintsDir = path.join(__dirname, "src/blueprints");
   const templatesDir = path.join(__dirname, "src/templates");
-
-  // Token blueprint JSON files
-  const tokenFiles = [
-    "colors.json",
-    "text-weights.json",
-    "text-leading.json",
-    "viewports.json",
-    "text-sizes.json",
-    "spacing.json",
-    "fonts.json",
-  ];
-  for (const file of tokenFiles) {
-    manifest.push({
-      src: path.join(blueprintsDir, file),
-      dest: path.join(settings.tokensDir, file),
-    });
-  }
 
   // Hello swatch (default example in swatchkit/swatches/hello/)
   for (const file of ["index.html", "README.md"]) {
@@ -455,7 +429,6 @@ function buildInitManifest(settings) {
 function getInitDirs(settings) {
   return [
     settings.swatchkitDir,
-    settings.tokensDir,
     path.join(settings.swatchkitDir, "tokens"),
     path.join(settings.swatchkitDir, "utilities"),
     path.join(settings.swatchkitDir, "compositions"),
@@ -463,6 +436,7 @@ function getInitDirs(settings) {
     path.join(settings.swatchkitDir, "swatches", "hello"),
     settings.cssDir,
     path.join(settings.cssDir, "global"),
+    path.join(settings.cssDir, "utilities"),
     path.join(settings.cssDir, "swatches"),
   ];
 }
@@ -531,19 +505,21 @@ function reportInitStatus(settings) {
   }
 }
 
-// --- 5. New Command Logic ---
+// --- 5. Config Generation ---
 function generateConfig(cssDir) {
   const body = `{
   // Where your CSS lives. SwatchKit scaffolds blueprints here and reads
-  // tokens from here when building the pattern library.
+  // your @swatchkit token blocks from here when building the pattern library.
   cssDir: "${cssDir}",
 
   // Set to false if a build tool (Vite, Astro, Eleventy, etc.) is already
   // handling your CSS and you don't need SwatchKit to copy it.
   cssCopy: true,
 
-  // Where token JSON files live.
-  // tokensDir: "./tokens",
+  // CSS files scanned for @swatchkit token blocks (supports a trailing * glob).
+  // Default: ["<cssDir>/global/tokens.css", "<cssDir>/tokens.css", "<cssDir>/tokens/*.css"].
+  // Add theme files explicitly, e.g. ["${cssDir}/global/tokens.css", "${cssDir}/theme.css"].
+  // tokenSources: ["${cssDir}/global/tokens.css", "${cssDir}/theme.css"],
 
   // Where the built pattern library is output.
   // outDir: "./dist/swatchkit",
@@ -555,17 +531,6 @@ function generateConfig(cssDir) {
   // If omitted, SwatchKit uses its default rendering.
   // renderSidebarSection: ({ category, categorySlug, items }) => string,
   // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
-
-  // Enable/disable individual token HTML swatches (CSS tokens still generated regardless).
-  // tokenSwatches: {
-  //   colors: true,
-  //   typography: true,
-  //   spacing: true,
-  //   fonts: true,
-  //   textWeights: true,
-  //   textLeading: true,
-  //   viewports: true,
-  // },
 }`;
 
   if (projectUsesEsm()) {
@@ -579,41 +544,22 @@ module.exports = ${body};
 `;
 }
 
-function runNew(cliOptions) {
+// Ensure swatchkit.config.js exists. Returns a promise resolving to the
+// resolved cssDir (relative form, e.g. "./src/css"). If the config already
+// exists, resolves with null (the caller keeps the existing settings).
+function ensureConfig(cliOptions) {
   const cwd = process.cwd();
   const configPath = path.join(cwd, "swatchkit.config.js");
 
-  if (fs.existsSync(configPath) && !cliOptions.force) {
-    console.log("[SwatchKit] swatchkit.config.js already exists.");
-    console.log('  Run "swatchkit new --force" to overwrite it.');
-    return;
+  const configExists = CONFIG_FILES.some((f) =>
+    fs.existsSync(path.join(cwd, f)),
+  );
+
+  if (configExists && !cliOptions.force) {
+    return Promise.resolve(null);
   }
 
-  // Non-interactive mode: --cssDir flag provided
-  if (cliOptions.cssDir) {
-    const content = generateConfig(cliOptions.cssDir);
-    fs.writeFileSync(configPath, content);
-    console.log(
-      `+ Created: swatchkit.config.js (cssDir: ${cliOptions.cssDir})`,
-    );
-    console.log('  Next: run "swatchkit scaffold" to set up your project.');
-    return;
-  }
-
-  // Interactive mode: prompt for CSS directory
-  const readline = require("readline");
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  rl.question("Where does your CSS live? [src/css]: ", (answer) => {
-    rl.close();
-    const cssDir = answer.trim()
-      ? `./${answer.trim().replace(/^\.\//, "")}`
-      : "./src/css";
-    const content = generateConfig(cssDir);
-
+  const writeConfig = (cssDir) => {
     if (fs.existsSync(configPath) && cliOptions.force) {
       const backupPath = getBackupPath(configPath);
       fs.copyFileSync(configPath, backupPath);
@@ -621,15 +567,37 @@ function runNew(cliOptions) {
         `  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`,
       );
     }
-
-    fs.writeFileSync(configPath, content);
+    fs.writeFileSync(configPath, generateConfig(cssDir));
     console.log(`+ Created: swatchkit.config.js (cssDir: ${cssDir})`);
-    console.log('  Next: run "swatchkit scaffold" to set up your project.');
+    return cssDir;
+  };
+
+  // Non-interactive: --cssDir provided.
+  if (cliOptions.cssDir) {
+    const cssDir = `./${cliOptions.cssDir.trim().replace(/^\.\//, "")}`;
+    return Promise.resolve(writeConfig(cssDir));
+  }
+
+  // Interactive prompt.
+  const readline = require("readline");
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question("Where does your CSS live? [src/css]: ", (answer) => {
+      rl.close();
+      const cssDir = answer.trim()
+        ? `./${answer.trim().replace(/^\.\//, "")}`
+        : "./src/css";
+      resolve(writeConfig(cssDir));
+    });
   });
 }
 
-// --- 6. Scaffold Command Logic (formerly init) ---
-function runInit(settings, options) {
+// --- 6. Init Command Logic (merged config + scaffold) ---
+function scaffold(settings, options) {
   const isInitialized = fs.existsSync(settings.swatchkitDir);
 
   // --dry-run: always just report status, change nothing.
@@ -662,10 +630,7 @@ function runInit(settings, options) {
   }
 
   // Files that are auto-generated by SwatchKit — never back these up
-  const swatchkitOwned = [
-    path.join(settings.cssDir, "global", "tokens.css"),
-    path.join(settings.cssDir, "utilities", "tokens.css"),
-  ];
+  const swatchkitOwned = [path.join(settings.utilitiesDir, "utilities.css")];
 
   // Copy all manifest files
   const manifest = buildInitManifest(settings);
@@ -696,34 +661,50 @@ function runInit(settings, options) {
     }
   }
 
-  // Generate tokens.css and utility tokens.css (always — these are generated files)
-  const tokensContext = processTokens(
-    settings.tokensDir,
-    path.join(settings.cssDir, "global"),
-  );
-  if (tokensContext) {
-    generateTokenUtilities(
-      tokensContext,
-      path.join(settings.cssDir, "utilities"),
-    );
+  // Generate utilities.css from the scaffolded tokens.css @swatchkit blocks.
+  try {
+    const blocks = parseTokenBlocks(settings.tokenSources, cwd);
+    if (blocks.length > 0) {
+      generateUtilities(blocks, settings.utilitiesDir);
+      console.log(
+        `+ Generated: ${path.relative(cwd, path.join(settings.utilitiesDir, "utilities.css"))} (do not edit manually)`,
+      );
+    }
+  } catch (e) {
+    console.warn(`[SwatchKit] Could not generate utilities: ${e.message}`);
   }
 
-  const cwd2 = process.cwd();
-  const tokensDir = path.relative(cwd2, settings.tokensDir);
+  const tokensCssRel = path.relative(
+    cwd,
+    path.join(settings.cssDir, "global", "tokens.css"),
+  );
   console.log(`
 Done! Here's what to do next:
 
-  1. Edit your design tokens in ${tokensDir}/
-       colors.json        — your colour palette
-       text-sizes.json    — fluid type scale
-       spacing.json       — fluid spacing scale
-       fonts.json         — font stacks
-       text-weights.json  — font weights
+  1. Edit your design tokens in ${tokensCssRel}
+       Tokens live in /* @swatchkit <type> "Label" */ ... /* @swatchkit end */
+       blocks. Edit the values directly — it's plain, hand-editable CSS.
 
   2. Run "swatchkit" to build the pattern library
 
   3. Open dist/swatchkit/index.html to view it
 `);
+}
+
+// Entry point for the `init` command: ensure config, then scaffold.
+async function runInit(cliOptions) {
+  const resolvedCssDir = await ensureConfig(cliOptions);
+
+  // Re-load config + settings now that the config exists (it may have just
+  // been created with a cssDir the user chose at the prompt).
+  const fileConfig = await loadConfig(cliOptions.config);
+  const settings = resolveSettings(cliOptions, fileConfig);
+
+  scaffold(settings, cliOptions);
+
+  if (resolvedCssDir === null) {
+    // Config already existed; nothing extra to say.
+  }
 }
 
 // --- 6. Build Logic ---
@@ -871,7 +852,7 @@ async function build(settings) {
     console.error(
       `Error: SwatchKit directory not found at ${settings.swatchkitDir}`,
     );
-    console.error('Run "swatchkit scaffold" to get started.');
+    console.error('Run "swatchkit init" to get started.');
     process.exit(1);
   }
 
@@ -888,26 +869,26 @@ async function build(settings) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
 
-  // 2.5 Process Tokens
-  console.log("Reading JSON tokens (tokens/*.json)...");
-  // Output tokens.css to css/global/tokens.css
-  const tokensContext = processTokens(
-    settings.tokensDir,
-    path.join(settings.cssDir, "global"),
+  // 2.5 Parse @swatchkit token blocks from CSS (the source of truth)
+  console.log(
+    `Parsing token blocks (${settings.tokenSources.join(", ")})...`,
   );
+  const tokenBlocks = parseTokenBlocks(settings.tokenSources, process.cwd());
 
-  // Generate Utilities to css/utilities/tokens.css
-  if (tokensContext) {
-    generateTokenUtilities(
-      tokensContext,
-      path.join(settings.cssDir, "utilities"),
-    );
+  // Generate utilities.css into css/utilities/ from the parsed token blocks.
+  if (tokenBlocks.length > 0) {
+    const wrote = generateUtilities(tokenBlocks, settings.utilitiesDir);
+    if (wrote) {
+      console.log(
+        `Generated utilities (${path.relative(process.cwd(), path.join(settings.utilitiesDir, "utilities.css"))})`,
+      );
+    }
   }
 
-  // 2.6 Generate token display HTML from JSON
+  // 2.6 Generate token documentation HTML (one rich display per block)
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
-  if (fs.existsSync(tokensUiDir)) {
-    const generated = generateTokenSwatches(settings.tokensDir, tokensUiDir, settings.tokenSwatches);
+  if (tokenBlocks.length > 0) {
+    const generated = generateTokenDocs(tokenBlocks, tokensUiDir);
     if (generated > 0) {
       console.log(
         `Generated ${generated} token documentation files (swatchkit/tokens/*.html)`,
@@ -1163,11 +1144,15 @@ async function build(settings) {
 
 // --- 7. Watch Logic ---
 function watch(settings) {
+  // Resolve token source files to watch (so token edits trigger a rebuild).
+  const { resolveTokenSources } = require("./src/token-parser");
+  const tokenFiles = resolveTokenSources(settings.tokenSources, process.cwd());
+
   const sourcePaths = [
     settings.swatchkitDir,
-    settings.tokensDir,
     settings.projectLayout,
     settings.mainCssFile,
+    ...tokenFiles,
   ].filter((p) => fs.existsSync(p)); // Only watch files that exist
 
   console.log("[SwatchKit] Watch mode enabled.");
@@ -1209,11 +1194,13 @@ function watch(settings) {
   // HTML files there (swatchkit/tokens/*.html), which would retrigger the
   // watcher and cause an infinite rebuild loop.
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
+  const generatedUtilities = path.join(settings.utilitiesDir, "utilities.css");
 
   const sourceWatcher = chokidar.watch(sourcePaths, {
     ignored: [
       /(^|[\/\\])\../, // ignore dotfiles
       tokensUiDir, // ignore build-generated token HTML
+      generatedUtilities, // ignore build-generated utilities.css
     ],
     persistent: true,
     ignoreInitial: true,
@@ -1248,8 +1235,8 @@ function printHelp() {
 Usage: swatchkit [command] [options]
 
 Commands:
-  new          Create a swatchkit.config.js for your project
-  scaffold     Set up CSS blueprints, token files, and layout templates
+  init         Create swatchkit.config.js and scaffold the project
+               (CSS blueprints, layout templates, starter tokens.css)
   (default)    Build the pattern library
 
 Options:
@@ -1258,11 +1245,10 @@ Options:
   -i, --input     Pattern directory (default: swatchkit/)
   -o, --outDir    Output directory (default: dist/swatchkit)
       --cssDir    CSS directory. Sets cssDir in swatchkit.config.js when
-                  used with "new" (default: src/css). If no config file is
+                  used with "init" (default: src/css). If no config file is
                   present at build time, the build falls back to ./css.
-  -f, --force     Overwrite existing files (new: overwrites config,
-                  scaffold: overwrites all blueprint files with backups)
-      --dry-run   Show what scaffold would create or change, without writing
+  -f, --force     Overwrite existing files (config + blueprints, with backups)
+      --dry-run   Show what init would create or change, without writing
   -h, --help      Show this help message
   -v, --version   Show version number`);
 }
@@ -1281,14 +1267,11 @@ Options:
       process.exit(0);
     }
 
-    const fileConfig = await loadConfig(cliOptions.config);
-    const settings = resolveSettings(cliOptions, fileConfig);
-
-    if (cliOptions.command === "new") {
-      runNew(cliOptions);
-    } else if (cliOptions.command === "scaffold") {
-      runInit(settings, cliOptions);
+    if (cliOptions.command === "init") {
+      await runInit(cliOptions);
     } else {
+      const fileConfig = await loadConfig(cliOptions.config);
+      const settings = resolveSettings(cliOptions, fileConfig);
       build(settings).catch((error) => {
         console.error("[SwatchKit] Error:", error.message);
         process.exit(1);

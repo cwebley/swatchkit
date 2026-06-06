@@ -5,9 +5,9 @@
  * global styles, compositions, utilities, and component swatches.
  * Edit freely — this file is yours.
  *
- * Note: swatchkit scaffold --force will overwrite blueprint files (with .bak backups).
- * The only truly auto-generated files are css/global/tokens.css and
- * css/utilities/tokens.css — do not edit those manually.
+ * Note: swatchkit init --force will overwrite blueprint files (with .bak backups).
+ * The only auto-generated file is css/utilities/utilities.css — do not edit it
+ * manually. Your design tokens live in css/global/tokens.css and are yours.
  */
 
 /* Import global styles (reset, tokens, variables, elements) */

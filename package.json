@@ -1,6 +1,6 @@
 {
   "name": "swatchkit",
-  "version": "4.0.2",
+  "version": "5.0.0",
   "description": "A lightweight tool for creating HTML pattern libraries.",
   "main": "build.js",
   "bin": {
@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/cwebley/swatchkit#readme",
   "dependencies": {
-    "chokidar": "^5.0.0"
+    "chokidar": "^5.0.0",
+    "postcss": "^8.5.0"
   }
 }

@@ -2,8 +2,9 @@
 
 /* Single-purpose helper classes */
 
-/* Auto-generated utility classes from your tokens */
-@import "tokens.css";
+/* Auto-generated utility classes from your @swatchkit token blocks.
+   Do not edit utilities.css directly — it is regenerated on every build. */
+@import "utilities.css";
 
 @import "visually-hidden.css";
 @import "region.css";

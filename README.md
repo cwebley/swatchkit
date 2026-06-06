@@ -14,6 +14,7 @@ my-project/
 │   ├── components/button.js          # shared renderButton
 │   ├── pages/home.js                 # calls renderButton → real app HTML
 │   └── css/                          # cssDir — your stylesheet source
+│       └── global/tokens.css         # design tokens (CSS, with @swatchkit blocks)
 ├── swatchkit/
 │   ├── _swatchkit.html
 │   ├── _preview.html
@@ -21,7 +22,6 @@ my-project/
 │       └── button/
 │           ├── index.js              # calls renderButton → swatch HTML
 │           └── demo.js               # sibling asset, copied to dist
-├── tokens/                           # design tokens (JSON)
 ├── scripts/build-site.js             # renders src/pages/home.js → dist/index.html
 ├── swatchkit.config.js
 └── dist/                             # generated
@@ -35,17 +35,15 @@ my-project/
 ## Quick start
 
 ```bash
-# 1. Create config (picks CJS or ESM based on package.json#type)
-npx swatchkit new --cssDir ./src/css
+# 1. Create config + scaffold CSS blueprints, layout templates, starter tokens
+#    (picks CJS or ESM config based on package.json#type)
+npx swatchkit init --cssDir ./src/css
 
-# 2. Scaffold CSS blueprints, layout templates, token JSONs
-npx swatchkit scaffold
-
-# 3. Build
+# 2. Build
 npx swatchkit
 ```
 
-`swatchkit new` defaults to `./src/css`. If you run `swatchkit` with no config file, the build falls back to `./css`. To pick a different location up front, pass `--cssDir ./css` (or anything else). The build output goes to `dist/swatchkit/` by default.
+`swatchkit init` prompts for `cssDir` (default `./src/css`) when `--cssDir` is omitted, writes `swatchkit.config.js`, and scaffolds the project in one step. If you run `swatchkit` with no config file, the build falls back to `./css`. The build output goes to `dist/swatchkit/` by default.
 
 For real projects, install as a dev dep and add a script:
 
@@ -212,12 +210,14 @@ export default {
   outDir: "./dist/patterns",
 
   // CSS source directory.
-  // `swatchkit new` defaults this to "./src/css".
+  // `swatchkit init` defaults this to "./src/css".
   // No-config builds fall back to "./css".
   cssDir: "./src/css",
 
-  // Token JSON source directory (default: "./tokens")
-  tokensDir: "./src/tokens",
+  // CSS files scanned for @swatchkit token blocks (supports a trailing * glob).
+  // Default: ["<cssDir>/global/tokens.css", "<cssDir>/tokens.css", "<cssDir>/tokens/*.css"].
+  // Add theme files explicitly when needed. See docs/tokens.md.
+  tokenSources: ["./src/css/global/tokens.css", "./src/css/theme.css"],
 
   // Copy cssDir into outDir/css. Set false to reference CSS via cssPath
   // instead. See "Two ways to ship CSS" above.
@@ -229,9 +229,6 @@ export default {
 
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
-
-  // Toggle individual token HTML swatches (CSS still generated regardless).
-  // tokenSwatches: { colors: true, typography: true, spacing: true, ... },
 
   // Override the default HTML renderers.
   // renderSidebarSection: ({ category, categorySlug, items }) => string,
@@ -249,10 +246,9 @@ swatchkit [command] [options]
 
 | Command | What it does |
 | :--- | :--- |
-| `swatchkit new` | Create `swatchkit.config.js`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. |
-| `swatchkit scaffold` | Copy CSS blueprints, token JSONs, and layout templates. Status report if already scaffolded. |
-| `swatchkit scaffold --force` | Overwrite all scaffold-managed files (with `.bak` backups). |
-| `swatchkit scaffold --dry-run` | Show what would change, write nothing. |
+| `swatchkit init` | Create `swatchkit.config.js` **and** scaffold CSS blueprints, layout templates, and a starter `tokens.css`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. Status report if already initialized. |
+| `swatchkit init --force` | Overwrite all managed files (with `.bak` backups). |
+| `swatchkit init --dry-run` | Show what would change, write nothing. |
 | `swatchkit` (default) | Build the pattern library. |
 
 | Flag | Short | What it does |
@@ -261,9 +257,9 @@ swatchkit [command] [options]
 | `--config` | `-c` | Path to config file. |
 | `--input` | `-i` | Pattern source dir (default: `swatchkit/`). |
 | `--outDir` | `-o` | Output dir (default: `dist/swatchkit`). |
-| `--cssDir` | | CSS dir for `new` (default prompt: `src/css`). |
-| `--force` | `-f` | Overwrite (`new`: config, `scaffold`: blueprints). |
-| `--dry-run` | | `scaffold`: report without writing. |
+| `--cssDir` | | CSS dir for `init` (default prompt: `src/css`). |
+| `--force` | `-f` | Overwrite config + blueprints (with backups). |
+| `--dry-run` | | `init`: report without writing. |
 | `--help` | `-h` | |
 | `--version` | `-v` | |
 
@@ -271,7 +267,7 @@ swatchkit [command] [options]
 
 `swatchkit` (the build command) does four things:
 
-1. **Reads `tokens/*.json`** and regenerates `css/global/tokens.css` and `css/utilities/tokens.css` if the content changed. These are the auto-generated CSS files in your source tree. SwatchKit also regenerates token-documentation HTML under `swatchkit/tokens/` on every build.
+1. **Parses `@swatchkit` token blocks** from the CSS files in `tokenSources` (your hand-written tokens — the source of truth). It regenerates `css/utilities/utilities.css` (utility classes derived from those tokens) and the token-documentation HTML under `swatchkit/tokens/`. Your token CSS is never modified — only `utilities.css` is generated. See [docs/tokens.md](./docs/tokens.md).
 2. **Copies CSS** from `cssDir` to `outDir/css` (only when `cssCopy: true`).
 3. **Scans `swatchkit/`** for swatches, renders each one. Static `index.html` swatches go through unchanged. Dynamic `index.js` swatches are imported and executed for their HTML. Sibling assets are copied alongside.
 4. **Writes** `outDir/index.html` (the library) and one `outDir/preview/{section}/{id}/index.html` per swatch (full-screen previews).
@@ -282,15 +278,14 @@ In watch mode, SwatchKit compares generated content against existing files and *
 
 | Path | Owned by | Notes |
 | :--- | :--- | :--- |
-| `tokens/*.json` | you | Source of truth for design tokens. |
+| `src/css/global/tokens.css` | you | **Source of truth for design tokens.** Hand-edit freely (`@swatchkit` blocks). |
 | `src/css/main.css` | you | Your entry point. |
 | `src/css/global/variables.css` | you | Edit `var()` references if you rename tokens. |
 | `src/css/global/elements.css` | you | Same. |
-| `src/css/global/tokens.css` | swatchkit | Regenerated every build. |
-| `src/css/utilities/tokens.css` | swatchkit | Regenerated every build. |
+| `src/css/utilities/utilities.css` | swatchkit | Generated every build from your token blocks. Do not edit. |
 | `src/css/swatchkit-ui.css` | you | Docs UI styling. Safe to customize. |
 | `src/css/swatchkit-preview.css` | you | Preview page styling. Safe to customize. |
-| `swatchkit/_swatchkit.html` | you | Layout template. `scaffold --force` overwrites it. |
+| `swatchkit/_swatchkit.html` | you | Layout template. `init --force` overwrites it. |
 | `swatchkit/_preview.html` | you | Preview template. Same caveat. |
 | `swatchkit/tokens/*.html` | swatchkit | Regenerated every build. |
 | `swatchkit/swatches/**/index.html` | you | Your swatches. |
@@ -310,32 +305,37 @@ SwatchKit only ever writes inside its own output directory — never the rest of
 
 In watch mode, SwatchKit polls for its output directory and rebuilds if it was wiped by an external tool.
 
-## Design tokens (optional)
+## Design tokens
 
-Edit `tokens/*.json` and SwatchKit auto-generates CSS. Supported token types:
+SwatchKit is **CSS-first**: tokens live in plain CSS that you own and hand-edit.
+You mark groups with `@swatchkit` comment blocks, and SwatchKit reads them to
+document each group and to generate utility classes.
 
-- **Colors** (`colors.json`): palettes
-- **Fluid typography** (`text-sizes.json`): `clamp()`-based type scales
-- **Fluid spacing** (`spacing.json`): `clamp()`-based spacing
-- **Modular text leading** (`text-leading.json`): line-height via `pow()` scales
-- **Fonts & weights** (`fonts.json`, `text-weights.json`)
-- **Viewports** (`viewports.json`): breakpoints used by fluid scales
-
-For `text-sizes.json` and `spacing.json`, you can specify static, fluid, or auto-fluid values:
-
-```json
-{
-  "title": "Text Sizes",
-  "fluidRatio": 1.25,
-  "items": [
-    { "name": "base", "value": "1rem" },
-    { "name": "md", "min": 16, "max": 20 },
-    { "name": "lg", "max": 24 }
-  ]
+```css
+/* src/css/global/tokens.css */
+:root {
+  /* @swatchkit colors "Brand Colors" */
+  --brand: #3b49df;
+  --brand-hover: oklch(from var(--brand) calc(l + 0.06) c h);
+  /* @swatchkit end */
 }
 ```
 
-`value` is static. `min`/`max` is fully fluid. Just one side triggers auto-fluid (other side derived from `fluidRatio`, default 1.125).
+This documents a "Brand Colors" page and generates `.color:brand`,
+`.background-color:brand`, etc. into `css/utilities/utilities.css`. Relational
+values (`oklch(from …)`, `var(…)`, `clamp(…)`) are preserved verbatim in the
+docs, so relationships are never flattened away.
+
+Supported token types: `colors`, `spacing`, `text-sizes`, `text-weights`,
+`text-leading`, `fonts`, `viewports`. Blocks can live under any selector (and
+inside `@layer` / `@media`), so theme variants are documented by wrapping each
+theme's region in its own block.
+
+Fluid type and spacing use plain, universally-supported `clamp()` (no build-time
+generator), tweakable via `--vw-min` / `--vw-max` / `--root` config variables.
+
+See **[docs/tokens.md](./docs/tokens.md)** for the full reference: marker syntax,
+`tokenSources`, every type's utilities, and the fluid `clamp()` pattern.
 
 ## Acknowledgements
 

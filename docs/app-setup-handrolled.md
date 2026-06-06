@@ -38,9 +38,9 @@ my-project/
 │   │   │   ├── index.css
 │   │   │   ├── button.css
 │   │   │   └── card.css
-│   │   ├── global/                   ← from `swatchkit scaffold`
-│   │   ├── compositions/             ← from `swatchkit scaffold`
-│   │   └── utilities/                ← from `swatchkit scaffold`
+│   │   ├── global/                   ← from `swatchkit init`
+│   │   ├── compositions/             ← from `swatchkit init`
+│   │   └── utilities/                ← from `swatchkit init`
 │   └── js/
 │       ├── main.js                   ← entry script for the main app
 │       └── theme-toggle.js           ← shared init (e.g. dark-mode toggle)
@@ -50,13 +50,12 @@ my-project/
 │   ├── swatches/
 │   │   ├── button/index.js           ← calls renderButton → swatch HTML
 │   │   └── card/index.js             ← calls renderCard → swatch HTML
-│   ├── compositions/…                ← from `swatchkit scaffold`
-│   ├── utilities/…                   ← from `swatchkit scaffold`
-│   └── tokens/…                      ← generated each build (or from scaffold)
-└── tokens/                           ← your design-token JSONs
+│   ├── compositions/…                ← from `swatchkit init`
+│   ├── utilities/…                   ← from `swatchkit init`
+│   └── tokens/…                      ← generated each build (token docs)
 ```
 
-Everything in `global/`, `compositions/`, `utilities/` (under both `src/css/` and `swatchkit/`) comes from `npx swatchkit scaffold`. The rest is yours.
+Everything in `global/`, `compositions/`, `utilities/` (under both `src/css/` and `swatchkit/`) comes from `npx swatchkit init`. The rest is yours.
 
 ---
 
@@ -89,7 +88,7 @@ The build chain runs in this order, and the order is load-bearing:
 
 1. **`clean`** — wipe `dist/` (cross-platform, works on Windows too).
 2. **`build:site`** — render `src/pages/home.js` → `dist/index.html` (the main app).
-3. **`build:swatchkit`** — run the `swatchkit` CLI. This regenerates `src/css/global/tokens.css` and `src/css/utilities/tokens.css` from `tokens/*.json`, then writes the pattern library to `dist/swatchkit/`.
+3. **`build:swatchkit`** — run the `swatchkit` CLI. This parses your `@swatchkit` token blocks (in `src/css/global/tokens.css` and any other `tokenSources`), regenerates `src/css/utilities/utilities.css` from them, and writes the pattern library to `dist/swatchkit/`. Your token CSS itself is never modified.
 4. **`build:assets`** — esbuild bundles `src/css/main.css` → `dist/css/main.css` and `src/js/main.js` → `dist/js/main.js`. Also copies `swatchkit-ui.css` and `swatchkit-preview.css` to `dist/css/`.
 
 `build:swatchkit` *must* run before `build:assets` — the freshly regenerated token CSS files need to exist before esbuild reads `main.css` (which `@import`s them). The full build chain handles this; if you run the steps individually, keep the order.
@@ -397,7 +396,7 @@ The entry stylesheet. Imports everything else:
 @import "theme.css";
 ```
 
-`global/`, `compositions/`, and `utilities/` come from `swatchkit scaffold`. `swatches/` and `theme.css` are yours — see Step 6 for how to extend them.
+`global/`, `compositions/`, and `utilities/` come from `swatchkit init`. `swatches/` and `theme.css` are yours — see Step 6 for how to extend them.
 
 esbuild reads this file as a real CSS entry: it follows the `@import`s, inlines them into one file, and supports media queries, `@layer`, and quoted/unquoted `url()` in the process.
 
@@ -475,7 +474,7 @@ Output (in order):
 [SwatchKit] Starting build…
   Source:   …/swatchkit
   Output:   …/dist/swatchkit
-Reading JSON tokens (tokens/*.json)…
+Parsing token blocks (src/css/global/tokens.css, …)…
 Skipping CSS copy (cssCopy: false). CSS referenced at: ../css/
 Scanning HTML patterns (swatchkit/**/*.html)…
 Generated 20 preview pages in …/dist/swatchkit/preview
@@ -681,9 +680,8 @@ npm pkg set type=module
 # 2. Tooling
 npm install -D swatchkit esbuild
 
-# 3. SwatchKit config + scaffold
-npx swatchkit new --cssDir ./src/css
-npx swatchkit scaffold
+# 3. SwatchKit config + scaffold (one step)
+npx swatchkit init --cssDir ./src/css
 ```
 
 Then set the integrated config:

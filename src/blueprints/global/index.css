@@ -3,7 +3,7 @@
 /* Browser Reset */
 @import "reset.css";
 
-/* Design Tokens (Generated) */
+/* Design Tokens (yours — edit src/css/global/tokens.css directly) */
 @import "tokens.css";
 
 /* Utility Variables */

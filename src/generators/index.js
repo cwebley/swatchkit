@@ -1,17 +1,51 @@
 /**
- * Token HTML Generators
- * 
- * These functions read JSON token files and generate HTML
- * for the SwatchKit UI that references the actual token names.
+ * SwatchKit Token Generators (v5)
+ *
+ * v5 is CSS-first: tokens are parsed from the user's CSS (see token-parser.js)
+ * into "blocks" of the shape:
+ *
+ *   { type, label, parentSelector, atRuleChain, sourceFile, sourceLine,
+ *     tokens: [{ name: "--foo", value: "<verbatim authored value>" }] }
+ *
+ * This module turns those blocks into:
+ *   1. Documentation HTML (one rich, type-specific display per block).
+ *   2. A generated utilities.css (utility classes referencing var(--name),
+ *      deduped across all blocks).
+ *
+ * Chips/swatches are rendered from the VERBATIM authored value via inline
+ * `style="background: <value>"`, so a "Dark Colors" table shows dark colors
+ * even on a light page — independent of the cascade. The browser resolves
+ * var()/oklch(from ...)/clamp() at render time.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-// Inline script that resolves CSS custom property values and annotates
-// .token-value elements with their computed value (e.g. "(#3b82f6)").
-// Included directly in any generated HTML fragment that uses .token-value
-// so the fragment is self-contained and doesn't depend on a shared bundle.
+// --- HTML / CSS escaping helpers ---------------------------------------------
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Strip the leading -- from a custom property to make the utility/display name.
+function tokenBaseName(prop) {
+  return prop.replace(/^--/, "");
+}
+
+// Escape a token name for use inside a CSS selector (the ":" in utility class
+// names must be escaped: .color\:foo).
+function escapeForSelector(name) {
+  return name.replace(/:/g, "\\:");
+}
+
+// --- Browser-side computed-value annotation ----------------------------------
+// Annotates .token-value elements with their resolved computed value. Included
+// inline so each generated fragment is self-contained.
 const TOKEN_DISPLAY_SCRIPT = `<script>
 (function() {
   var elements = document.querySelectorAll('.token-value');
@@ -41,50 +75,35 @@ const TOKEN_DISPLAY_SCRIPT = `<script>
 })();
 </script>`;
 
-/**
- * Read and parse a JSON token file
- */
-function readTokenFile(tokensDir, filename) {
-  const filePath = path.join(tokensDir, filename);
-  if (!fs.existsSync(filePath)) return null;
-  
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
-  } catch (error) {
-    console.error(`[SwatchKit] Error reading ${filename}:`, error.message);
-    return null;
-  }
-}
+// =============================================================================
+// Documentation renderers (one per token type)
+// Each takes a block and returns an HTML string.
+// =============================================================================
 
-/**
- * Generate colors.html from colors.json
- */
-function generateColors(tokensDir) {
-  const data = readTokenFile(tokensDir, 'colors.json');
-  if (!data || !data.items) return null;
-
-  const rows = data.items.map(item => {
-    const varName = `--${item.name}`;
-    return `      <tr>
+function renderColors(block) {
+  const rows = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `      <tr>
         <td>
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap;">
-            <div style="background: ${item.value}; width: 2rem; height: 2rem; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0;" role="presentation"></div>
-            <strong>${item.name}</strong>
+            <div style="background: ${escapeHtml(t.value)}; width: 2rem; height: 2rem; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0;" role="presentation"></div>
+            <strong>${escapeHtml(base)}</strong>
           </div>
         </td>
-        <td><code>${item.value}</code></td>
-        <td><code>var(${varName})</code></td>
-        <td><code>.color:${item.name}</code></td>
-        <td><code>.background-color:${item.name}</code></td>
+        <td><code>${escapeHtml(t.value)}</code></td>
+        <td><code>var(${escapeHtml(t.name)})</code></td>
+        <td><code>.color:${escapeHtml(base)}</code></td>
+        <td><code>.background-color:${escapeHtml(base)}</code></td>
       </tr>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<table class="color-table">
   <thead>
     <tr>
       <th>Name</th>
-      <th>Hex code</th>
+      <th>Value</th>
       <th>Custom Property</th>
       <th>Color Utility Class</th>
       <th>BG Utility Class</th>
@@ -118,27 +137,21 @@ ${rows}
 </style>`;
 }
 
-/**
- * Generate typography.html from text-sizes.json
- */
-function generateTypography(tokensDir) {
-  const data = readTokenFile(tokensDir, 'text-sizes.json');
-  if (!data || !data.items) return null;
-
-  const steps = data.items.map(item => {
-    const varName = `--${item.name}`;
-    const min = item.min !== undefined ? `${item.min}px` : '—';
-    const max = item.max !== undefined ? `${item.max}px` : '—';
-    return `  <div class="type-step">
-    <div class="type-sample" style="font-size: var(${varName})">${item.name}</div>
+function renderTextSizes(block) {
+  const steps = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `  <div class="type-step">
+    <div class="type-sample" style="font-size: var(${escapeHtml(t.name)})">${escapeHtml(base)}</div>
     <div class="type-meta">
-      <code>${varName}</code>
-      <code>.font-size:${item.name}</code>
-      <span class="token-value" data-var="${varName}"></span>
-      <span>${min} / ${max}</span>
+      <code>var(${escapeHtml(t.name)})</code>
+      <code>.font-size:${escapeHtml(base)}</code>
+      <code>${escapeHtml(t.value)}</code>
+      <span class="token-value" data-var="${escapeHtml(t.name)}"></span>
     </div>
   </div>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<div class="type-ladder">
 ${steps}
@@ -172,40 +185,35 @@ ${steps}
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
-/**
- * Generate spacing.html from spacing.json
- */
-function generateSpacing(tokensDir) {
-  const data = readTokenFile(tokensDir, 'spacing.json');
-  if (!data || !data.items) return null;
-
-  const scaleRows = data.items.map(item => {
-    const varName = `--${item.name}`;
-    const minVal = item.min !== undefined ? `${item.min}px` : (item.value || '—');
-    const maxVal = item.max !== undefined ? `${item.max}px` : (item.value || '—');
-    return `      <tr>
+function renderSpacing(block) {
+  const scaleRows = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `      <tr>
         <td>
-          <div class="spacing-swatch" style="height: var(${varName});"></div>
+          <div class="spacing-swatch" style="height: var(${escapeHtml(t.name)});"></div>
         </td>
-        <td><strong>${item.name}</strong></td>
-        <td><code>var(${varName})</code></td>
-        <td>${minVal}</td>
-        <td>${maxVal}</td>
+        <td><strong>${escapeHtml(base)}</strong></td>
+        <td><code>var(${escapeHtml(t.name)})</code></td>
+        <td><code>${escapeHtml(t.value)}</code></td>
       </tr>`;
-  }).join('\n');
+    })
+    .join("\n");
 
-  const usageRows = data.items.map(item => {
-    const slug = item.name;
-    return `      <tr>
-        <td><code>var(--${slug})</code></td>
-        <td><code>.padding-block:${slug}</code></td>
-        <td><code>.padding-inline:${slug}</code></td>
-        <td><code>.margin-block:${slug}</code></td>
-        <td><code>.flow-space:${slug}</code></td>
-        <td><code>.gutter:${slug}</code></td>
-        <td><code>.region-space:${slug}</code></td>
+  const usageRows = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `      <tr>
+        <td><code>var(${escapeHtml(t.name)})</code></td>
+        <td><code>.padding-block:${escapeHtml(base)}</code></td>
+        <td><code>.padding-inline:${escapeHtml(base)}</code></td>
+        <td><code>.margin-block:${escapeHtml(base)}</code></td>
+        <td><code>.flow-space:${escapeHtml(base)}</code></td>
+        <td><code>.gutter:${escapeHtml(base)}</code></td>
+        <td><code>.region-space:${escapeHtml(base)}</code></td>
       </tr>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Scale</h2>
 <table class="spacing-table">
@@ -214,8 +222,7 @@ function generateSpacing(tokensDir) {
       <th width="120px"></th>
       <th>Name</th>
       <th>Custom Property</th>
-      <th>Min</th>
-      <th>Max</th>
+      <th>Value</th>
     </tr>
   </thead>
   <tbody>
@@ -272,20 +279,16 @@ ${usageRows}
 </style>`;
 }
 
-/**
- * Generate fonts.html from fonts.json
- */
-function generateFonts(tokensDir) {
-  const data = readTokenFile(tokensDir, 'fonts.json');
-  if (!data || !data.items) return null;
-
-  const stacks = data.items.map(item => {
-    const varName = `--${item.name}`;
-    return `  <div style="font-family: var(${varName}); margin-bottom: 2rem;">
-    <strong>${item.name}</strong> <code class="token-value" data-var="${varName}">var(${varName})</code>
+function renderFonts(block) {
+  const stacks = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `  <div style="font-family: var(${escapeHtml(t.name)}); margin-bottom: 2rem;">
+    <strong>${escapeHtml(base)}</strong> <code class="token-value" data-var="${escapeHtml(t.name)}">var(${escapeHtml(t.name)})</code>
     <p>The quick brown fox jumps over the lazy dog.</p>
   </div>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<div class="font-stack">
 ${stacks}
@@ -293,24 +296,20 @@ ${stacks}
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
-/**
- * Generate text-weights.html from text-weights.json
- */
-function generateTextWeights(tokensDir) {
-  const data = readTokenFile(tokensDir, 'text-weights.json');
-  if (!data || !data.items) return null;
-
-  const weights = data.items.map(item => {
-    const varName = `--${item.name}`;
-    return `  <div class="weight-step">
-    <div class="weight-sample" style="font-weight: var(${varName})">The quick brown fox jumps over the lazy dog.</div>
+function renderTextWeights(block) {
+  const weights = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `  <div class="weight-step">
+    <div class="weight-sample" style="font-weight: var(${escapeHtml(t.name)})">The quick brown fox jumps over the lazy dog.</div>
     <div class="weight-meta">
-      <code>${varName}</code>
-      <code>.font-weight:${item.name}</code>
-      <span>${item.value}</span>
+      <code>var(${escapeHtml(t.name)})</code>
+      <code>.font-weight:${escapeHtml(base)}</code>
+      <span>${escapeHtml(t.value)}</span>
     </div>
   </div>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<div class="weight-ladder">
 ${weights}
@@ -343,26 +342,22 @@ ${weights}
 </style>`;
 }
 
-/**
- * Generate text-leading.html from text-leading.json
- */
-function generateTextLeading(tokensDir) {
-  const data = readTokenFile(tokensDir, 'text-leading.json');
-  if (!data || !data.items) return null;
-
+function renderTextLeading(block) {
   const loremText = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.`;
 
-  const leadings = data.items.map(item => {
-    const varName = `--${item.name}`;
-    return `  <div style="line-height: var(${varName})">
+  const leadings = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      return `  <div style="line-height: var(${escapeHtml(t.name)})">
     <div class="meta">
-      <code>${varName}</code>
-      <code>.line-height:${item.name}</code>
-      <span class="token-value" data-var="${varName}"></span>
+      <code>var(${escapeHtml(t.name)})</code>
+      <code>.line-height:${escapeHtml(base)}</code>
+      <span class="token-value" data-var="${escapeHtml(t.name)}"></span>
     </div>
     <p>${loremText}</p>
   </div>`;
-  }).join('\n\n');
+    })
+    .join("\n\n");
 
   return `<div class="flow">
 ${leadings}
@@ -386,27 +381,23 @@ ${leadings}
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
-/**
- * Generate viewports.html from viewports.json
- */
-function generateViewports(tokensDir) {
-  const data = readTokenFile(tokensDir, 'viewports.json');
-  if (!data || !data.items) return null;
-
-  const items = data.items.map(item => {
-    const varName = `--${item.name}`;
-    const displayValue = typeof item.value === 'number' ? `${item.value}px` : item.value;
-    const barWidth = typeof item.value === 'number' ? `${item.value}px` : '100%';
-    return `  <div class="viewport-item">
-    <div class="viewport-bar" style="width: ${barWidth}">
+function renderViewports(block) {
+  const items = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      // Use the authored value directly as the bar width when it's a length.
+      const barWidth = /^\d/.test(t.value) ? t.value : "100%";
+      return `  <div class="viewport-item">
+    <div class="viewport-bar" style="width: ${escapeHtml(barWidth)}">
       <span class="viewport-meta">
-        <strong>${item.name}</strong>
-        <code>var(${varName})</code>
-        <span class="viewport-value">${displayValue}</span>
+        <strong>${escapeHtml(base)}</strong>
+        <code>var(${escapeHtml(t.name)})</code>
+        <span class="viewport-value">${escapeHtml(t.value)}</span>
       </span>
     </div>
   </div>`;
-  }).join('\n');
+    })
+    .join("\n");
 
   return `<div class="viewport-list">
 ${items}
@@ -448,55 +439,206 @@ ${items}
 </style>`;
 }
 
+// type -> { doc: renderer, utilities: emitter | null, defaultTitle }
+const TYPE_REGISTRY = {
+  colors: { doc: renderColors, utilities: emitColorUtilities, defaultTitle: "Colors" },
+  spacing: { doc: renderSpacing, utilities: emitSpacingUtilities, defaultTitle: "Spacing" },
+  "text-sizes": { doc: renderTextSizes, utilities: emitFontSizeUtilities, defaultTitle: "Text Sizes" },
+  "text-weights": { doc: renderTextWeights, utilities: emitFontWeightUtilities, defaultTitle: "Text Weights" },
+  "text-leading": { doc: renderTextLeading, utilities: emitLineHeightUtilities, defaultTitle: "Text Leading" },
+  fonts: { doc: renderFonts, utilities: emitFontFamilyUtilities, defaultTitle: "Fonts" },
+  viewports: { doc: renderViewports, utilities: null, defaultTitle: "Viewports" },
+};
+
+// =============================================================================
+// Utility emitters (one per type). Each returns an array of CSS rule strings.
+// Rules reference var(--name) so they theme correctly at runtime and dedup
+// across variant blocks.
+// =============================================================================
+
+function emitColorUtilities(token) {
+  const base = tokenBaseName(token.name);
+  const sel = escapeForSelector(base);
+  return [
+    `.color\\:${sel} { color: var(${token.name}) !important; }`,
+    `.background-color\\:${sel} { background-color: var(${token.name}) !important; }`,
+  ];
+}
+
+function emitFontSizeUtilities(token) {
+  const base = escapeForSelector(tokenBaseName(token.name));
+  return [`.font-size\\:${base} { font-size: var(${token.name}) !important; }`];
+}
+
+function emitFontWeightUtilities(token) {
+  const base = escapeForSelector(tokenBaseName(token.name));
+  return [`.font-weight\\:${base} { font-weight: var(${token.name}) !important; }`];
+}
+
+function emitLineHeightUtilities(token) {
+  const base = escapeForSelector(tokenBaseName(token.name));
+  return [`.line-height\\:${base} { line-height: var(${token.name}) !important; }`];
+}
+
+function emitFontFamilyUtilities(token) {
+  const base = escapeForSelector(tokenBaseName(token.name));
+  return [`.font-family\\:${base} { font-family: var(${token.name}) !important; }`];
+}
+
+const SPACING_PROPERTIES = [
+  "margin-block",
+  "margin-block-start",
+  "margin-block-end",
+  "margin-inline",
+  "margin-inline-start",
+  "margin-inline-end",
+  "padding-block",
+  "padding-block-start",
+  "padding-block-end",
+  "padding-inline",
+  "padding-inline-start",
+  "padding-inline-end",
+];
+
+function emitSpacingUtilities(token) {
+  const base = escapeForSelector(tokenBaseName(token.name));
+  const rules = SPACING_PROPERTIES.map(
+    (prop) => `.${prop}\\:${base} { ${prop}: var(${token.name}) !important; }`,
+  );
+  rules.push(`.gap\\:${base} { gap: var(${token.name}) !important; }`);
+  rules.push(`.region-space\\:${base} { --region-space: var(${token.name}); }`);
+  rules.push(`.flow-space\\:${base} { --flow-space: var(${token.name}); }`);
+  rules.push(`.gutter\\:${base} { --gutter: var(${token.name}); }`);
+  return rules;
+}
+
+// =============================================================================
+// Public API
+// =============================================================================
+
 /**
- * Generate all token HTML files and write them to the tokens UI directory
+ * Generate the utilities CSS string from parsed token blocks.
+ * Emits rules for every token in every block, then dedups identical rule
+ * strings (variant blocks of the same token produce identical rules).
  */
-function generateTokenSwatches(tokensDir, tokensUiDir, tokenSwatches = {}) {
-  const enabled = {
-    colors: true,
-    typography: true,
-    spacing: true,
-    fonts: true,
-    textWeights: true,
-    textLeading: true,
-    viewports: true,
-    ...tokenSwatches,
-  };
+function generateUtilitiesCss(blocks) {
+  const seen = new Set();
+  const ordered = [];
 
-  const generators = [
-    { filename: 'colors.html', fn: generateColors, key: 'colors' },
-    { filename: 'typography.html', fn: generateTypography, key: 'typography' },
-    { filename: 'spacing.html', fn: generateSpacing, key: 'spacing' },
-    { filename: 'fonts.html', fn: generateFonts, key: 'fonts' },
-    { filename: 'text-weights.html', fn: generateTextWeights, key: 'textWeights' },
-    { filename: 'text-leading.html', fn: generateTextLeading, key: 'textLeading' },
-    { filename: 'viewports.html', fn: generateViewports, key: 'viewports' },
-  ].filter(g => enabled[g.key] !== false);
-
-  let generated = 0;
-
-  generators.forEach(({ filename, fn }) => {
-    const html = fn(tokensDir);
-    if (html) {
-      const destPath = path.join(tokensUiDir, filename);
-      const existing = fs.existsSync(destPath) ? fs.readFileSync(destPath, 'utf-8') : null;
-      if (existing !== html) {
-        fs.writeFileSync(destPath, html);
-        generated++;
+  for (const block of blocks) {
+    const emitter = TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities;
+    if (!emitter) continue; // e.g. viewports
+    for (const token of block.tokens) {
+      for (const rule of emitter(token)) {
+        if (!seen.has(rule)) {
+          seen.add(rule);
+          ordered.push(rule);
+        }
       }
+    }
+  }
+
+  let css = "/* AUTO-GENERATED by SwatchKit — do not edit manually. */\n";
+  css += "/* Utility classes derived from your @swatchkit token blocks. */\n\n";
+  css += ordered.join("\n") + "\n";
+  return css;
+}
+
+/**
+ * Write utilities.css into the given directory if changed. Returns true if
+ * written.
+ */
+function generateUtilities(blocks, utilitiesDir) {
+  const outputFile = path.join(utilitiesDir, "utilities.css");
+  const css = generateUtilitiesCss(blocks);
+  if (!fs.existsSync(utilitiesDir)) {
+    fs.mkdirSync(utilitiesDir, { recursive: true });
+  }
+  const existing = fs.existsSync(outputFile)
+    ? fs.readFileSync(outputFile, "utf-8")
+    : null;
+  if (existing !== css) {
+    fs.writeFileSync(outputFile, css);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Render the documentation HTML for a single block.
+ */
+function renderBlockDoc(block) {
+  const entry = TYPE_REGISTRY[block.type];
+  if (!entry) return null;
+  return entry.doc(block);
+}
+
+/**
+ * Produce a stable slug + display title for a block, used as the token swatch
+ * filename and sidebar entry. Multiple blocks of the same type are
+ * disambiguated by their label.
+ */
+function blockSlug(block, index) {
+  const entry = TYPE_REGISTRY[block.type];
+  const labelPart = (block.label || entry.defaultTitle)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  // Ensure uniqueness even if two blocks share a label.
+  return labelPart || `${block.type}-${index}`;
+}
+
+function blockTitle(block) {
+  const entry = TYPE_REGISTRY[block.type];
+  return block.label || (entry ? entry.defaultTitle : block.type);
+}
+
+/**
+ * Generate token documentation HTML files (one per block) into tokensUiDir.
+ * Returns the number of files written. Filenames are <slug>.html; collisions
+ * are de-duplicated with a numeric suffix.
+ */
+function generateTokenDocs(blocks, tokensUiDir) {
+  if (!fs.existsSync(tokensUiDir)) {
+    fs.mkdirSync(tokensUiDir, { recursive: true });
+  }
+
+  const usedSlugs = new Map();
+  let written = 0;
+
+  blocks.forEach((block, index) => {
+    const html = renderBlockDoc(block);
+    if (!html) return;
+
+    let slug = blockSlug(block, index);
+    if (usedSlugs.has(slug)) {
+      const n = usedSlugs.get(slug) + 1;
+      usedSlugs.set(slug, n);
+      slug = `${slug}-${n}`;
+    } else {
+      usedSlugs.set(slug, 1);
+    }
+
+    const destPath = path.join(tokensUiDir, `${slug}.html`);
+    const existing = fs.existsSync(destPath)
+      ? fs.readFileSync(destPath, "utf-8")
+      : null;
+    if (existing !== html) {
+      fs.writeFileSync(destPath, html);
+      written++;
     }
   });
 
-  return generated;
+  return written;
 }
 
 module.exports = {
-  generateColors,
-  generateTypography,
-  generateSpacing,
-  generateFonts,
-  generateTextWeights,
-  generateTextLeading,
-  generateViewports,
-  generateTokenSwatches,
+  generateUtilities,
+  generateUtilitiesCss,
+  generateTokenDocs,
+  renderBlockDoc,
+  blockSlug,
+  blockTitle,
+  TYPE_REGISTRY,
 };
