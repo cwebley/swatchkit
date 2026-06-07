@@ -133,18 +133,18 @@ the leaves:
   /* Fluid config — tweak these; clamps recompute live, no rebuild. */
   --vw-min: 330;   /* min viewport (unitless px) */
   --vw-max: 1350;  /* max viewport (unitless px) */
-  --root: 16;      /* px per rem */
+  --root-base: 16; /* px base the min/max numbers are authored in (16 = 1rem) */
 
   /* @swatchkit text-sizes "Text Sizes" */
   /* 15px at 330px viewport → 18px at 1350px viewport */
   --step-0: clamp(
-    calc(15 / var(--root) * 1rem),
+    calc(15 / var(--root-base) * 1rem),
     calc(
       (15 - var(--vw-min) * (18 - 15) / (var(--vw-max) - var(--vw-min)))
-        / var(--root) * 1rem
+        / var(--root-base) * 1rem
       + (18 - 15) / (var(--vw-max) - var(--vw-min)) * 100vw
     ),
-    calc(18 / var(--root) * 1rem)
+    calc(18 / var(--root-base) * 1rem)
   );
   /* @swatchkit end */
 }
@@ -153,6 +153,13 @@ the leaves:
 Why unitless? CSS `calc()` can divide by a unitless number (`/ 1020`) but not by
 a unitful one (`/ 1020px`). Keeping the bounds unitless and multiplying by
 `1rem` / `100vw` at the end keeps the math valid.
+
+`--root-base` is the px base your min/max numbers are written in — it is **not** an
+assumption about the user's browser font size. The `clamp()` floors and ceilings
+resolve to `rem`, so they still scale up if the user increases their default font
+size (CSS has no way to read the live root px as a number, which is why this base
+is declared explicitly). Only change it if you author the min/max values in a
+different px base.
 
 The `swatchkit init` blueprint ships a full fluid type and spacing scale already
 written this way — copy a line and change the two numbers (min, max) to add a

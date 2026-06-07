@@ -351,7 +351,7 @@ inside `@layer` / `@media`), so theme variants are documented by wrapping each
 theme's region in its own block.
 
 Fluid type and spacing use plain, universally-supported `clamp()` (no build-time
-generator), tweakable via `--vw-min` / `--vw-max` / `--root` config variables.
+generator), tweakable via `--vw-min` / `--vw-max` / `--root-base` config variables.
 
 See **[docs/tokens.md](./docs/tokens.md)** for the full reference: marker syntax,
 `tokenSources`, every type's utilities, and the fluid `clamp()` pattern.
