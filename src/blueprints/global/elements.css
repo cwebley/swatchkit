@@ -6,8 +6,8 @@
  * reduces repetition and provides a solid foundation.
  * This file is yours to edit.
  *
- * Variable references use the default token names from tokens/*.json.
- * If you have renamed any tokens, update the var() references below to match.
+ * Variable references use the default token names from global/tokens.css.
+ * If you rename tokens, update the var() references below to match.
  *
  * Based on Andy Bell's Complete CSS course methodology.
  */
