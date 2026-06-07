@@ -794,6 +794,10 @@ function scaffoldApp(settings, options) {
   }
 
   if (pkg) {
+    // Snapshot the on-disk content so we can tell whether we actually change
+    // anything (avoids a misleading "Updated" on idempotent re-runs).
+    const before = pkgExisted ? fs.readFileSync(pkgPath, "utf-8") : null;
+
     pkg.name = pkg.name || path.basename(cwd);
     pkg.version = pkg.version || "1.0.0";
     pkg.private = pkg.private !== undefined ? pkg.private : true;
@@ -837,8 +841,16 @@ function scaffoldApp(settings, options) {
       pkg.devDependencies.swatchkit = "^5.0.0";
     }
 
-    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-    console.log(`  ${pkgExisted ? "~ Updated" : "+ Created"}: package.json (scripts + devDependencies)`);
+    const after = JSON.stringify(pkg, null, 2) + "\n";
+    if (!pkgExisted) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  + Created: package.json (scripts + devDependencies)");
+    } else if (after !== before) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  ~ Updated: package.json (scripts + devDependencies)");
+    } else {
+      console.log("  = package.json already up to date");
+    }
   }
 
   console.log(`
