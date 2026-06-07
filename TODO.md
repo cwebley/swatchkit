@@ -1,16 +1,16 @@
 # SwatchKit To-Do
 
-## Token Strategy
+## Token Strategy — DONE in v5
 
-- **Format Evaluation:** Are the JSON files useful for designers/Figma? Should they be? Consider removing unused viewports in default setup.
-- **Config-First Architecture:** Evaluate moving from `JSON -> CSS` to `Config -> CSS` directly (creating JSON on demand if needed).
-
-## Technical Improvements
-
-- **CSS-Native Clamping:** Evaluate removing JS clamp generator logic and handling it entirely in CSS `clamp()`.
-  - _Benefit:_ Easier updates; changing a single CSS variable cascades instantly without a rebuild/watcher.
-  - remove the source of truth for tokens being the json file?
-  - the json files are still the source of truth for displaying the tokens in the ui. so maybe the json is the best strat.
+- ~~**Format Evaluation:** Are the JSON files useful for designers/Figma?~~
+  Resolved: v5 dropped JSON entirely. Tokens are now CSS-first (`@swatchkit`
+  blocks in `tokens.css`); CSS is the single source of truth and also drives the
+  docs UI (parsed with PostCSS).
+- ~~**Config-First Architecture:** `JSON -> CSS`.~~ Superseded — there is no
+  JSON layer anymore; you author CSS directly.
+- ~~**CSS-Native Clamping:** remove the JS clamp generator.~~ Done: fluid type
+  and spacing use hand-written `clamp()` (unitless `--vw-min`/`--vw-max`/
+  `--root-base` pattern), no JS generator, no rebuild to retune.
 
 ## Additions
 

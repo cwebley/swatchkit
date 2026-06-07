@@ -22,7 +22,9 @@ my-project/
 │       └── button/
 │           ├── index.js              # calls renderButton → swatch HTML
 │           └── demo.js               # sibling asset, copied to dist
-├── scripts/build-site.js             # renders src/pages/home.js → dist/index.html
+├── scripts/                          # build scripts (from `init --app`)
+│   ├── build-site.js                 # renders src/pages/home.js → dist/index.html
+│   └── build-assets.js               # esbuild bundles CSS + JS
 ├── swatchkit.config.js
 └── dist/                             # generated
     ├── index.html                    # main app (rendered at build time)
@@ -80,9 +82,9 @@ SwatchKit reads from a single folder (`swatchkit/` by default). Top-level folder
 
 ```
 swatchkit/
-├── tokens/                # section: "Design Tokens" (visual previews)
+├── tokens/                # section: "Design Tokens" (generated — see below)
 │   ├── colors.html
-│   └── typography.html
+│   └── text-sizes.html
 ├── swatches/              # section: "Swatches"
 │   ├── button/
 │   │   └── index.html
@@ -100,6 +102,7 @@ Rules:
 - **One level deep.** A swatch is a folder with an `index.html` (or `index.js`, see below). Nested groups like `swatches/components/button/` are not scanned — use `swatches/button/`.
 - **Underscore prefix is ignored.** `_wip/`, `_notes.md`, `_swatchkit.html` all stay out of the build.
 - **Sibling assets travel with the swatch.** Anything next to `index.html` (CSS, JS, images) is copied to the build output, so your swatch can reference them with relative paths.
+- **`swatchkit/tokens/*.html` is generated**, not hand-written. SwatchKit regenerates it on every build from your `@swatchkit` token blocks (see [Design tokens](#design-tokens)). Don't edit those files.
 
 ## JavaScript swatches
 
@@ -208,7 +211,7 @@ For an integrated app, your `package.json` typically chains both steps. The cano
 }
 ```
 
-`build:swatchkit` runs first so any freshly regenerated `src/css/global/tokens.css` and `src/css/utilities/tokens.css` get picked up by `build:assets`. Even with `cssCopy: false`, SwatchKit still regenerates those token files inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`.
+`build:swatchkit` runs first so the freshly regenerated `src/css/utilities/utilities.css` (the utility classes derived from your `@swatchkit` token blocks) gets picked up by `build:assets`. Even with `cssCopy: false`, SwatchKit still regenerates that utilities file inside `cssDir`; it only skips copying CSS into `dist/swatchkit/css/`. Your `tokens.css` is never modified — it's the source of truth.
 
 If you just want to kick the tires: `cp -r src/css dist/css` works in place of `build-assets.js`, but it doesn't bundle `@import`s and doesn't minify — use it for a prototype, then switch to the esbuild flow for anything beyond that.
 

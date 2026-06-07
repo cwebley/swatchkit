@@ -27,9 +27,11 @@ a watch-enabled `package.json`. `npm run dev` then builds, watches your source,
 and serves at `http://localhost:8080/` (app) and `/swatchkit/` (pattern
 library).
 
-The rest of this guide explains every piece that `--app` generates, so you can
-customize it or build it yourself. If you used `--app`, treat the sections below
-as a reference for what you already have.
+The rest of this guide explains each piece so you can customize it or build it
+yourself. If you used `--app`, treat the sections below as a reference for what
+you already have. Some examples here are intentionally a little richer than the
+minimal starter (e.g. a `theme-toggle.js` to show how shared browser-side JS
+fits in) — they illustrate the pattern, not the exact generated files.
 
 ---
 
@@ -122,7 +124,7 @@ The build chain runs in this order, and the order is load-bearing:
 3. **`build:swatchkit`** — run the `swatchkit` CLI. This parses your `@swatchkit` token blocks (in `src/css/global/tokens.css` and any other `tokenSources`), regenerates `src/css/utilities/utilities.css` from them, and writes the pattern library to `dist/swatchkit/`. Your token CSS itself is never modified.
 4. **`build:assets`** — esbuild bundles `src/css/main.css` → `dist/css/main.css` and `src/js/main.js` → `dist/js/main.js`. Also copies `swatchkit-ui.css` and `swatchkit-preview.css` to `dist/css/`.
 
-`build:swatchkit` *must* run before `build:assets` — the freshly regenerated token CSS files need to exist before esbuild reads `main.css` (which `@import`s them). The full build chain handles this; if you run the steps individually, keep the order.
+`build:swatchkit` *must* run before `build:assets` — the freshly regenerated `utilities.css` needs to exist before esbuild reads `main.css` (which `@import`s it). The full build chain handles this; if you run the steps individually, keep the order.
 
 `build:prod` is the deployable artifact: same chain, but `build-assets.js` runs with `--prod`, which turns on minification and turns off source maps. See [Source maps](#source-maps) below.
 
@@ -138,7 +140,7 @@ export default {
 };
 ```
 
-- **`cssDir`** — where your source CSS lives. The CLI reads this to know which `@import` statements to follow and where to write regenerated token CSS.
+- **`cssDir`** — where your source CSS lives. The CLI reads this to locate your `@swatchkit` token blocks and to write the generated `utilities/utilities.css`.
 - **`cssCopy: false`** — don't copy CSS into `dist/swatchkit/css/`. The pattern library's HTML will reference `../css/main.css` instead, so the CSS lives in one place (`dist/css/`) and both the app and the library point at it.
 - **`cssPath`** — the path from the swatchkit HTML files to the shared CSS. The default (when omitted) is `../<basename of cssDir>/`, so this is usually just what you'd get by default. Set it explicitly only if your build puts CSS somewhere unusual.
 
@@ -146,7 +148,7 @@ export default {
 
 ## Step 3: The build scripts
 
-Three small Node scripts and one esbuild call. Drop the scripts in `scripts/` and chain them from `package.json` (already done in Step 1).
+Three small Node scripts: `clean.js`, `build-site.js`, and `build-assets.js` (which is just one esbuild call). Drop them in `scripts/` and chain them from `package.json` (already done in Step 1).
 
 ### `scripts/clean.js`
 
