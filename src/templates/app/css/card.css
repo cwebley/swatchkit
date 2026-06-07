@@ -1,0 +1,25 @@
+.card {
+  --flow-space: var(--space-s);
+  max-width: 28rem;
+  padding: var(--space-m);
+  border: var(--stroke-solid);
+  border-radius: var(--radius-m);
+  background: var(--color-light);
+  color: var(--color-dark);
+}
+
+.card-title {
+  font-family: var(--font-base);
+  font-weight: var(--weight-bold);
+  font-size: var(--step-2);
+  line-height: var(--leading-flat);
+}
+
+.card-body {
+  font-size: var(--step-0);
+  line-height: var(--leading-standard);
+}
+
+.card-footer {
+  --flow-space: var(--space-m);
+}

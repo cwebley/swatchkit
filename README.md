@@ -45,6 +45,23 @@ npx swatchkit
 
 `swatchkit init` prompts for `cssDir` (default `./src/css`) when `--cssDir` is omitted, writes `swatchkit.config.js`, and scaffolds the project in one step. If you run `swatchkit` with no config file, the build falls back to `./css`. The build output goes to `dist/swatchkit/` by default.
 
+### Full app in one command
+
+To scaffold a complete integrated app — esbuild build scripts, shared
+`renderButton`/`renderCard` functions, a home page, two example swatches, and a
+watch-enabled `package.json` — add `--app`:
+
+```bash
+mkdir my-app && cd my-app
+npm install -D swatchkit esbuild
+npx swatchkit init --app
+npm install
+npm run dev      # builds, watches, serves at http://localhost:8080
+```
+
+The app is at `/`, the pattern library at `/swatchkit/`, both sharing one bundled
+CSS file. See [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
+
 For real projects, install as a dev dep and add a script:
 
 ```bash
@@ -247,12 +264,14 @@ swatchkit [command] [options]
 | Command | What it does |
 | :--- | :--- |
 | `swatchkit init` | Create `swatchkit.config.js` **and** scaffold CSS blueprints, layout templates, and a starter `tokens.css`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. Status report if already initialized. |
+| `swatchkit init --app` | Also scaffold an integrated esbuild app starter (build scripts, shared renderers, home page, two example swatches, watch-enabled `package.json`). |
 | `swatchkit init --force` | Overwrite all managed files (with `.bak` backups). |
 | `swatchkit init --dry-run` | Show what would change, write nothing. |
 | `swatchkit` (default) | Build the pattern library. |
 
 | Flag | Short | What it does |
 | :--- | :--- | :--- |
+| `--app` | | With `init`: scaffold the integrated esbuild app starter. |
 | `--watch` | `-w` | Rebuild on file change. |
 | `--config` | `-c` | Path to config file. |
 | `--input` | `-i` | Pattern source dir (default: `swatchkit/`). |

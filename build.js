@@ -22,12 +22,15 @@ function parseArgs(args) {
     cssDir: null,
     force: false,
     dryRun: false,
+    app: false,
   };
 
   for (let i = 2; i < args.length; i++) {
     const arg = args[i];
     if (arg === "init") {
       options.command = "init";
+    } else if (arg === "--app") {
+      options.app = true;
     } else if (arg === "-w" || arg === "--watch") {
       options.watch = true;
     } else if (arg === "-h" || arg === "--help") {
@@ -500,13 +503,29 @@ function reportInitStatus(settings) {
 
   if (changed.length > 0 || created.length > 0 || newDirs.length > 0) {
     console.log(
-      "  Run 'swatchkit scaffold --force' to update all files to latest blueprints.\n",
+      "  Run 'swatchkit init --force' to update all files to latest blueprints.\n",
     );
   }
 }
 
 // --- 5. Config Generation ---
-function generateConfig(cssDir) {
+function generateConfig(cssDir, app = false) {
+  // App mode: integrated config (a build tool owns the CSS, so SwatchKit
+  // references the shared stylesheet rather than copying it). The app starter
+  // always sets "type": "module" in package.json, so the config is ESM.
+  if (app) {
+    const appBody = `{
+  cssDir: "${cssDir}",
+
+  // Integrated app: esbuild (scripts/build-assets.js) owns the CSS, so
+  // SwatchKit references the shared stylesheet instead of copying it. Both the
+  // app and the pattern library point at dist/css/main.css.
+  cssCopy: false,
+  cssPath: "../css/",
+}`;
+    return `// swatchkit.config.js\nexport default ${appBody};\n`;
+  }
+
   const body = `{
   // Where your CSS lives. SwatchKit scaffolds blueprints here and reads
   // your @swatchkit token blocks from here when building the pattern library.
@@ -567,8 +586,10 @@ function ensureConfig(cliOptions) {
         `  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`,
       );
     }
-    fs.writeFileSync(configPath, generateConfig(cssDir));
-    console.log(`+ Created: swatchkit.config.js (cssDir: ${cssDir})`);
+    fs.writeFileSync(configPath, generateConfig(cssDir, cliOptions.app));
+    console.log(
+      `+ Created: swatchkit.config.js (cssDir: ${cssDir}${cliOptions.app ? ", integrated app" : ""})`,
+    );
     return cssDir;
   };
 
@@ -674,6 +695,9 @@ function scaffold(settings, options) {
     console.warn(`[SwatchKit] Could not generate utilities: ${e.message}`);
   }
 
+  // In --app mode, scaffoldApp prints the next-steps message instead.
+  if (options.app) return;
+
   const tokensCssRel = path.relative(
     cwd,
     path.join(settings.cssDir, "global", "tokens.css"),
@@ -691,9 +715,153 @@ Done! Here's what to do next:
 `);
 }
 
+// --- 6.5 App Starter Scaffold (swatchkit init --app) ---
+// Copies an integrated-app starter (esbuild build scripts, shared renderers,
+// a home page, two example swatches) on top of the standard scaffold, and
+// wires up package.json scripts/devDeps. Idempotent: skips existing files
+// unless --force.
+function scaffoldApp(settings, options) {
+  const cwd = process.cwd();
+  const appTemplates = path.join(__dirname, "src/templates/app");
+
+  console.log("\n[SwatchKit] Scaffolding integrated app starter...");
+
+  // 1. Copy plain template files to fixed destinations.
+  const fileMap = [
+    ["scripts/clean.js", "scripts/clean.js"],
+    ["scripts/build-site.js", "scripts/build-site.js"],
+    ["scripts/build-assets.js", "scripts/build-assets.js"],
+    ["src/components/button.js", "src/components/button.js"],
+    ["src/components/card.js", "src/components/card.js"],
+    ["src/pages/home.js", "src/pages/home.js"],
+    ["src/js/main.js", "src/js/main.js"],
+    // Component CSS goes into the configured cssDir/swatches.
+    ["css/button.css", path.join(settings.cssDir, "swatches", "button.css")],
+    ["css/card.css", path.join(settings.cssDir, "swatches", "card.css")],
+    // Example swatches.
+    ["swatches/button/index.js", "swatchkit/swatches/button/index.js"],
+    ["swatches/button/description.html", "swatchkit/swatches/button/description.html"],
+    ["swatches/card/index.js", "swatchkit/swatches/card/index.js"],
+    ["swatches/card/description.html", "swatchkit/swatches/card/description.html"],
+  ];
+
+  for (const [rel, destRel] of fileMap) {
+    const src = path.join(appTemplates, rel);
+    const dest = path.isAbsolute(destRel) ? destRel : path.join(cwd, destRel);
+    const exists = fs.existsSync(dest);
+    if (exists && !options.force) {
+      console.log(`  = Skipped (exists): ${path.relative(cwd, dest)}`);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (exists && options.force) {
+      const backupPath = getBackupPath(dest);
+      fs.copyFileSync(dest, backupPath);
+      console.log(`  ~ Backed up: ${path.relative(cwd, dest)} → ${path.basename(backupPath)}`);
+    }
+    fs.copyFileSync(src, dest);
+    console.log(`  ${exists ? "~ Updated" : "+ Created"}: ${path.relative(cwd, dest)}`);
+  }
+
+  // 2. Register the component CSS in swatches/index.css (append if missing).
+  const swatchIndex = path.join(settings.cssDir, "swatches", "index.css");
+  if (fs.existsSync(swatchIndex)) {
+    let css = fs.readFileSync(swatchIndex, "utf-8");
+    let changed = false;
+    for (const imp of ['@import "button.css";', '@import "card.css";']) {
+      if (!css.includes(imp)) {
+        css = css.trimEnd() + "\n" + imp + "\n";
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(swatchIndex, css);
+      console.log(`  ~ Updated: ${path.relative(cwd, swatchIndex)} (registered button.css, card.css)`);
+    }
+  }
+
+  // 3. Create or update package.json with scripts + devDeps.
+  const pkgPath = path.join(cwd, "package.json");
+  const pkgExisted = fs.existsSync(pkgPath);
+  let pkg = {};
+  if (pkgExisted) {
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    } catch {
+      console.warn("  ! Could not parse existing package.json — leaving it untouched.");
+      pkg = null;
+    }
+  }
+
+  if (pkg) {
+    pkg.name = pkg.name || path.basename(cwd);
+    pkg.version = pkg.version || "1.0.0";
+    pkg.private = pkg.private !== undefined ? pkg.private : true;
+    pkg.type = "module";
+
+    const appScripts = {
+      clean: "node scripts/clean.js",
+      "build:site": "node scripts/build-site.js",
+      "build:swatchkit": "swatchkit",
+      "build:assets": "node scripts/build-assets.js",
+      build:
+        "npm run clean && npm run build:site && npm run build:swatchkit && npm run build:assets",
+      "build:prod":
+        "npm run clean && npm run build:site && npm run build:swatchkit && node scripts/build-assets.js --prod",
+      "watch:site":
+        "onchange 'src/pages/**/*' 'src/components/**/*' -- npm run build:site",
+      "watch:assets":
+        "onchange 'src/css/**/*' 'src/js/**/*' 'src/components/**/*' -e 'src/css/utilities/utilities.css' -- npm run build:assets",
+      "swatchkit:watch": "swatchkit --watch",
+      serve: "http-server dist -c-1 -p 8080 -o",
+      dev: "npm run build && npm-run-all --parallel watch:site watch:assets swatchkit:watch serve",
+    };
+    pkg.scripts = pkg.scripts || {};
+    for (const [k, v] of Object.entries(appScripts)) {
+      // Don't clobber a user's existing script of the same name unless --force.
+      if (pkg.scripts[k] === undefined || options.force) pkg.scripts[k] = v;
+    }
+
+    const appDevDeps = {
+      esbuild: "^0.28.0",
+      "http-server": "^14.1.1",
+      "npm-run-all": "^4.1.5",
+      onchange: "^7.1.0",
+    };
+    pkg.devDependencies = pkg.devDependencies || {};
+    for (const [k, v] of Object.entries(appDevDeps)) {
+      if (pkg.devDependencies[k] === undefined) pkg.devDependencies[k] = v;
+    }
+    // swatchkit itself is a dev dependency of the host app.
+    if (pkg.devDependencies.swatchkit === undefined && pkg.dependencies?.swatchkit === undefined) {
+      pkg.devDependencies.swatchkit = "^5.0.0";
+    }
+
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+    console.log(`  ${pkgExisted ? "~ Updated" : "+ Created"}: package.json (scripts + devDependencies)`);
+  }
+
+  console.log(`
+Done! Integrated app starter scaffolded. Next:
+
+  1. Install dependencies:
+       npm install
+
+  2. Start the dev loop (build, watch, serve):
+       npm run dev
+
+     The app is at http://localhost:8080/ and the pattern library at
+     http://localhost:8080/swatchkit/. Edit src/components/button.js or
+     src/components/card.js and both update.
+
+  3. Production build (minified, no source maps):
+       npm run build:prod
+`);
+}
+
 // Entry point for the `init` command: ensure config, then scaffold.
 async function runInit(cliOptions) {
-  const resolvedCssDir = await ensureConfig(cliOptions);
+  await ensureConfig(cliOptions);
 
   // Re-load config + settings now that the config exists (it may have just
   // been created with a cssDir the user chose at the prompt).
@@ -702,8 +870,8 @@ async function runInit(cliOptions) {
 
   scaffold(settings, cliOptions);
 
-  if (resolvedCssDir === null) {
-    // Config already existed; nothing extra to say.
+  if (cliOptions.app) {
+    scaffoldApp(settings, cliOptions);
   }
 }
 
@@ -1237,9 +1405,13 @@ Usage: swatchkit [command] [options]
 Commands:
   init         Create swatchkit.config.js and scaffold the project
                (CSS blueprints, layout templates, starter tokens.css)
+  init --app   Also scaffold an integrated app starter: esbuild build
+               scripts, shared renderers, a home page, two example
+               swatches, and watch-enabled package.json scripts
   (default)    Build the pattern library
 
 Options:
+      --app       With "init": scaffold the integrated esbuild app starter
   -w, --watch     Watch files and rebuild on change
   -c, --config    Path to config file
   -i, --input     Pattern directory (default: swatchkit/)

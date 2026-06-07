@@ -255,6 +255,69 @@ function read(p) {
   scaffoldFailed ? ok("`scaffold` is no longer a command (falls through to build, errors uninitialized)") : fail("`scaffold` removed");
 }
 
+// 11. `init --app` scaffolds the integrated app starter
+{
+  console.log("\n[11] init --app scaffolds the integrated app starter");
+  const dir = freshDir("11-init-app");
+  // Truly empty dir (no package.json) — --app should create one.
+  runSwatchkit("init --app", dir, ["init", "--app", "--cssDir", "./src/css"]);
+
+  // App files scaffolded
+  const appFiles = [
+    "scripts/clean.js",
+    "scripts/build-site.js",
+    "scripts/build-assets.js",
+    "src/components/button.js",
+    "src/components/card.js",
+    "src/pages/home.js",
+    "src/js/main.js",
+    "src/css/swatches/button.css",
+    "src/css/swatches/card.css",
+    "swatchkit/swatches/button/index.js",
+    "swatchkit/swatches/card/index.js",
+  ];
+  let allFiles = true;
+  for (const f of appFiles) {
+    if (!exists(path.join(dir, f))) {
+      allFiles = false;
+      fail(`app file: ${f}`);
+    }
+  }
+  if (allFiles) ok("all app starter files scaffolded");
+
+  // Integrated config is ESM + cssCopy:false
+  const cfg = read(path.join(dir, "swatchkit.config.js"));
+  cfg.includes("export default") && cfg.includes("cssCopy: false")
+    ? ok("integrated ESM config (cssCopy:false)")
+    : fail("integrated ESM config (cssCopy:false)");
+
+  // package.json created with dev/watch scripts + type module
+  const pkg = JSON.parse(read(path.join(dir, "package.json")) || "{}");
+  pkg.type === "module" ? ok("package.json type:module") : fail("package.json type:module");
+  pkg.scripts && pkg.scripts.dev && pkg.scripts["watch:assets"]
+    ? ok("package.json has dev + watch scripts")
+    : fail("package.json has dev + watch scripts");
+  pkg.devDependencies && pkg.devDependencies.esbuild && pkg.devDependencies.onchange
+    ? ok("package.json has esbuild + onchange devDeps")
+    : fail("package.json has esbuild + onchange devDeps");
+
+  // Component CSS registered in swatches/index.css
+  const swatchIdx = read(path.join(dir, "src/css/swatches/index.css"));
+  swatchIdx.includes('@import "button.css";') && swatchIdx.includes('@import "card.css";')
+    ? ok("component CSS registered in swatches/index.css")
+    : fail("component CSS registered in swatches/index.css");
+
+  // Build works (uses local swatchkit; esbuild not needed for the swatchkit step,
+  // and build:assets is a separate npm script, so just run the swatchkit build).
+  runSwatchkit("build", dir, []);
+  exists(path.join(dir, "dist/swatchkit/preview/swatches/button/index.html"))
+    ? ok("button swatch builds")
+    : fail("button swatch builds");
+  exists(path.join(dir, "dist/swatchkit/preview/swatches/card/index.html"))
+    ? ok("card swatch builds")
+    : fail("card swatch builds");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 
