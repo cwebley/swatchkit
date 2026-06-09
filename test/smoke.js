@@ -318,6 +318,47 @@ function read(p) {
     : fail("card swatch builds");
 }
 
+// 12. Cascade layers: main.css declares layer order; utilities have no !important
+{
+  console.log("\n[12] Cascade layers + no !important in utilities");
+  const dir = freshDir("12-cascade-layers");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+  runSwatchkit("build", dir, []);
+
+  const mainCss = read(path.join(dir, "src/css/main.css"));
+  // Layer order declaration, utilities last
+  /@layer\s+reset,\s*tokens,\s*elements,\s*compositions,\s*swatches,\s*app,\s*utilities\s*;/.test(mainCss)
+    ? ok("main.css declares layer order (utilities last)")
+    : fail("main.css declares layer order (utilities last)");
+  // Imports assign layers
+  mainCss.includes('@import "global/reset.css" layer(reset);')
+    ? ok("reset imported into layer(reset)")
+    : fail("reset imported into layer(reset)");
+  mainCss.includes('@import "utilities/index.css" layer(utilities);')
+    ? ok("utilities imported into layer(utilities)")
+    : fail("utilities imported into layer(utilities)");
+  mainCss.includes("@layer app {")
+    ? ok("main.css has @layer app block")
+    : fail("main.css has @layer app block")
+
+  // Generated utilities contain real rules but NO !important declarations
+  const util = read(path.join(dir, "src/css/utilities/utilities.css"));
+  util.includes(".color\\:color-primary { color: var(--color-primary); }")
+    ? ok("color utility generated without !important")
+    : fail("color utility generated without !important");
+  // No "!important" outside comments: strip /* ... */ then check
+  const utilNoComments = util.replace(/\/\*[\s\S]*?\*\//g, "");
+  !utilNoComments.includes("!important")
+    ? ok("no !important in generated utility rules")
+    : fail("no !important in generated utility rules");
+
+  // No stray global/index.css blueprint anymore
+  exists(path.join(dir, "src/css/global/index.css"))
+    ? fail("global/index.css should no longer be scaffolded")
+    : ok("global/index.css not scaffolded (flattened into main.css)");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

@@ -359,6 +359,26 @@ generator), tweakable via `--vw-min` / `--vw-max` / `--root-base` config variabl
 See **[docs/tokens.md](./docs/tokens.md)** for the full reference: marker syntax,
 `tokenSources`, every type's utilities, and the fluid `clamp()` pattern.
 
+## Cascade layers
+
+The scaffolded `main.css` declares a [cascade-layer](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) order so the cascade is predictable — a later layer always wins over an earlier one, regardless of selector specificity:
+
+```css
+@layer reset, tokens, elements, compositions, swatches, app, utilities;
+```
+
+| Layer | Contains |
+| :--- | :--- |
+| `reset` | browser reset |
+| `tokens` | design tokens + variables |
+| `elements` | bare element defaults |
+| `compositions` | layout primitives (flow, cluster, sidebar, …) |
+| `swatches` | your component styles |
+| `app` | app/page-specific CSS (overrides components) |
+| `utilities` | generated token utilities — the final word |
+
+`utilities` is declared **last**, so utility classes win over component and app styles **without `!important`**. Add a utility class in your markup and it takes effect. Plain *unlayered* CSS still beats every layer — that's your escape hatch for the rare override.
+
 ## Acknowledgements
 
 The CSS compositions included by default are adapted from [Every Layout](https://every-layout.dev/) by Heydon Pickering and Andy Bell.

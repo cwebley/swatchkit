@@ -115,9 +115,14 @@ a large vendor stylesheet never slows the token parse.
 
 The utility class suffix is the **full custom-property name** (minus the leading
 `--`). So `--palette-default-active` becomes `.color:palette-default-active`.
-Utilities use `!important` (CUBE/Every Layout methodology) and reference
-`var(--name)`, so they theme correctly at runtime. Identical rules produced by
-multiple variant blocks are deduplicated.
+Utilities reference `var(--name)`, so they theme correctly at runtime. Identical
+rules produced by multiple variant blocks are deduplicated.
+
+Utilities **do not use `!important`**. Instead, `main.css` imports the generated
+`utilities.css` into a `utilities` cascade layer that is declared **last**, so a
+utility class wins over component and app styles by layer order — not specificity
+or `!important`. Add a utility class in your markup and it takes effect. (Plain
+*unlayered* CSS still overrides every layer, which is your escape hatch.)
 
 ---
 

@@ -417,21 +417,35 @@ For a starting project, you can trim this down to just a header and one componen
 
 ### `src/css/main.css`
 
-The entry stylesheet. Imports everything else:
+The entry stylesheet. It declares the cascade-layer order, then imports each group of styles into its layer:
 
 ```css
-/* === Your App Styles === */
+@layer reset, tokens, elements, compositions, swatches, app, utilities;
 
-@import "global/index.css";
-@import "compositions/index.css";
-@import "utilities/index.css";
-@import "swatches/index.css";
-@import "theme.css";
+@import "global/reset.css" layer(reset);
+@import "global/tokens.css" layer(tokens);
+@import "global/variables.css" layer(tokens);
+@import "global/elements.css" layer(elements);
+
+@import "compositions/index.css" layer(compositions);
+@import "swatches/index.css" layer(swatches);
+@import "utilities/index.css" layer(utilities);
+
+/* === Your App Styles === */
+@layer app {
+  /* @import "theme.css" layer(app);  — or write rules directly here */
+}
 ```
 
-`global/`, `compositions/`, and `utilities/` come from `swatchkit init`. `swatches/` and `theme.css` are yours — see Step 6 for how to extend them.
+`global/`, `compositions/`, and `utilities/` come from `swatchkit init`. `swatches/` and your app CSS are yours — see Step 6 for how to extend them.
 
-esbuild reads this file as a real CSS entry: it follows the `@import`s, inlines them into one file, and supports media queries, `@layer`, and quoted/unquoted `url()` in the process.
+**Cascade layers** make the cascade predictable: a later layer always wins over an earlier one, regardless of selector specificity. `utilities` is declared **last**, so a utility class in your markup wins over component and app styles without `!important`. Plain *unlayered* CSS still beats every layer — your escape hatch.
+
+Two rules to keep in mind:
+- `@import` statements must come **before** any regular style rules. Keep the `@layer` declaration and all `@import` lines at the top; put app CSS in the `@layer app { }` block.
+- The single `@layer reset, …, utilities;` line fixes the order globally. It doesn't matter that the `@layer app { }` block physically appears after the `utilities` import — `utilities` still wins because it's later in that declaration.
+
+esbuild reads this file as a real CSS entry: it follows the `@import`s (including `layer(...)` assignments), inlines them into one file, and supports media queries, `@layer`, and quoted/unquoted `url()` in the process.
 
 ### `src/js/main.js`
 
