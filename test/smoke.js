@@ -359,6 +359,38 @@ function read(p) {
     : ok("global/index.css not scaffolded (flattened into main.css)");
 }
 
+// 13. init --app upgrades a non-ESM package.json to "type": "module" BEFORE
+//     writing/loading the ESM config (regression: previously failed with
+//     "Unexpected token 'export'" on the build).
+{
+  console.log("\n[13] init --app makes a CJS project ESM, then builds");
+  const dir = freshDir("13-app-cjs-to-esm");
+  // Start with a CommonJS package.json (no "type": "module") — the failing case.
+  fs.writeFileSync(path.join(dir, "package.json"), CJS_PKG);
+  runSwatchkit("init --app", dir, ["init", "--app", "--cssDir", "./src/css"]);
+
+  const pkg = JSON.parse(read(path.join(dir, "package.json")) || "{}");
+  pkg.type === "module"
+    ? ok("CJS package.json upgraded to type:module")
+    : fail("CJS package.json upgraded to type:module");
+
+  const cfg = read(path.join(dir, "swatchkit.config.js"));
+  cfg.includes("export default")
+    ? ok("ESM config written")
+    : fail("ESM config written");
+
+  // The build must now succeed (this is what used to throw).
+  let buildFailed = false;
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+  } catch (e) {
+    buildFailed = true;
+  }
+  buildFailed
+    ? fail("build succeeds after init --app on a CJS project")
+    : ok("build succeeds after init --app on a CJS project");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

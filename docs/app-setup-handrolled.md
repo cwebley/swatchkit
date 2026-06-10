@@ -14,11 +14,18 @@ Everything this guide builds by hand can be scaffolded in one command:
 
 ```bash
 mkdir my-app && cd my-app
+npm init -y
+npm pkg set type=module private=true   # the app starter is ESM — set this first
 npm install -D swatchkit esbuild
-npx swatchkit init --app
+npx swatchkit init --app --cssDir ./src/css
 npm install
 npm run dev
 ```
+
+> **Set `"type": "module"` before `init --app`.** The starter writes an ESM
+> config (`export default { … }`); without `"type": "module"` Node loads it as
+> CommonJS and the build fails with `Error: Unexpected token 'export'`. If you
+> hit that, run `npm pkg set type=module` then re-run with `--force`.
 
 `swatchkit init --app` creates the integrated config, the esbuild build scripts
 (`scripts/clean.js`, `build-site.js`, `build-assets.js`), shared renderers
@@ -760,8 +767,10 @@ The tradeoff: you maintain the order array instead of `@import` lines, and you g
 
 ```bash
 mkdir my-app && cd my-app
+npm init -y
+npm pkg set type=module private=true   # the app starter is ESM — set this first
 npm install -D swatchkit esbuild
-npx swatchkit init --app
+npx swatchkit init --app --cssDir ./src/css
 npm install
 npm run dev
 ```
@@ -770,6 +779,11 @@ npm run dev
 (`button`, `card`), a home page, two example swatches, and a watch-enabled
 `package.json`. You're running with a working app + pattern library in under a
 minute. Everything it generates is described in the steps above — edit away.
+
+> The app starter is ESM, so set `"type": "module"` **before** running
+> `init --app` (the `npm pkg set type=module` line above). Otherwise Node loads
+> the generated `export default` config as CommonJS and the build fails with
+> `Error: Unexpected token 'export'`.
 
 ### Manual (build it yourself)
 

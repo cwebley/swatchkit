@@ -175,6 +175,40 @@ function projectUsesEsm(cwd = process.cwd()) {
   }
 }
 
+// Ensure package.json exists and is ESM ("type": "module"). Used by
+// `init --app`, whose starter (config + build scripts) is ESM. This MUST run
+// before the ESM swatchkit.config.js is written/loaded, otherwise Node loads
+// the config as CommonJS and fails with "Unexpected token 'export'".
+// Returns true if it created or modified package.json.
+function ensureEsmPackageJson(cwd = process.cwd()) {
+  const packageJsonPath = path.join(cwd, "package.json");
+  let pkg = {};
+  let existed = false;
+  if (fs.existsSync(packageJsonPath)) {
+    existed = true;
+    try {
+      pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    } catch {
+      // Leave an unparseable package.json untouched; warn instead.
+      console.warn(
+        "[SwatchKit] Could not parse package.json — please add '\"type\": \"module\"' yourself.",
+      );
+      return false;
+    }
+  }
+  if (pkg.type === "module") return false;
+
+  pkg.name = pkg.name || path.basename(cwd);
+  pkg.version = pkg.version || "1.0.0";
+  pkg.private = pkg.private !== undefined ? pkg.private : true;
+  pkg.type = "module";
+  fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + "\n");
+  console.log(
+    `  ${existed ? "~ Updated" : "+ Created"}: package.json ("type": "module")`,
+  );
+  return true;
+}
+
 // --- 2.5 Glob Matching Helper ---
 function matchesGlob(filename, pattern) {
   // Simple wildcard support
@@ -873,6 +907,14 @@ Done! Integrated app starter scaffolded. Next:
 
 // Entry point for the `init` command: ensure config, then scaffold.
 async function runInit(cliOptions) {
+  // The --app starter is ESM (config + build scripts use export/import). Make
+  // package.json "type": "module" BEFORE writing/loading the ESM config, so the
+  // config doesn't get loaded as CommonJS and fail with "Unexpected token
+  // 'export'". (Plain `init` keeps matching the existing package.json#type.)
+  if (cliOptions.app) {
+    ensureEsmPackageJson();
+  }
+
   await ensureConfig(cliOptions);
 
   // Re-load config + settings now that the config exists (it may have just

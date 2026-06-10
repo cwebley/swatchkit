@@ -55,14 +55,41 @@ watch-enabled `package.json` — add `--app`:
 
 ```bash
 mkdir my-app && cd my-app
+
+# 1. Create package.json and make the project ESM FIRST (see note below).
+npm init -y
+npm pkg set type=module private=true
+
+# 2. Install tooling, then scaffold + run.
 npm install -D swatchkit esbuild
-npx swatchkit init --app
+npx swatchkit init --app --cssDir ./src/css
 npm install
 npm run dev      # builds, watches, serves at http://localhost:8080
 ```
 
 The app is at `/`, the pattern library at `/swatchkit/`, both sharing one bundled
 CSS file. See [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
+
+> **Set `"type": "module"` before running `init --app`.** The app starter is
+> ESM, so it writes an ESM `swatchkit.config.js` (`export default { … }`) and
+> ESM build scripts. If your `package.json` isn't `"type": "module"`, Node loads
+> the config as CommonJS and the build fails with:
+>
+> ```
+> Warning: Failed to load the ES module: …/swatchkit.config.js.
+> Make sure to set "type": "module" in the nearest package.json …
+> [SwatchKit] Error: Unexpected token 'export'
+> ```
+>
+> Fix it by setting ESM and re-running (use `--force` to refresh the config):
+>
+> ```bash
+> npm pkg set type=module
+> npx swatchkit init --app --cssDir ./src/css --force
+> ```
+>
+> The plain `swatchkit init` (without `--app`) doesn't need this — it picks CJS
+> or ESM config syntax based on your existing `package.json#type`.
 
 For real projects, install as a dev dep and add a script:
 
