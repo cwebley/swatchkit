@@ -12,6 +12,46 @@
   and spacing use hand-written `clamp()` (unitless `--vw-min`/`--vw-max`/
   `--root-base` pattern), no JS generator, no rebuild to retune.
 
+## Architecture
+
+### Generate token docs into `dist`, not back into the source tree (future)
+
+Today the build generates token-documentation HTML into the **source**
+`swatchkit/tokens/*.html`, then scans `swatchkit/**/*.html` as normal swatches.
+This round-trip (write generated files into source, then scan source) is the
+root of a class of bugs.
+
+In 5.1.2 we fixed the most painful symptom — stale generated docs from
+removed/renamed `@swatchkit` blocks — with marker-based cleanup: each generated
+file carries `<!-- @swatchkit generated-token-doc -->`, and the build removes
+marked files that are no longer wanted (leaving hand-authored files alone).
+
+The cleaner long-term design is **Option 3: generate token docs directly into
+`dist/swatchkit/preview/tokens/` (and inject them into the sidebar/sections
+model in memory), instead of writing them into the source `swatchkit/tokens/`
+directory at all.**
+
+Benefits:
+- Generated output never pollutes the source tree (no marker hack needed, no
+  stale files, nothing to `.gitignore`).
+- "Generated vs. authored" is unambiguous: source = yours, dist = ours.
+- Removes the write-into-source-then-scan-source coupling.
+
+Why it's deferred (it's a bigger change than the marker fix):
+- The scanner currently treats `swatchkit/tokens/*.html` like normal source
+  swatches; section + sidebar generation is driven by the scanned `sections`
+  structure.
+- Preview-page generation also derives from that scanned structure.
+- To move generation into `dist`, token docs would need to be inserted into the
+  `sections` map directly (a synthetic "Design Tokens" section) rather than
+  discovered by scanning — touching the scan/section/preview pipeline.
+- Need to decide how a user could still *hand-author* token pages under
+  `swatchkit/tokens/` if they want to (probably: still scan that dir for
+  authored files, just stop writing generated ones into it).
+
+When tackled, drop the `GENERATED_TOKEN_DOC_MARKER` machinery in
+`src/generators/index.js` and the cleanup step in `build.js`.
+
 ## Additions
 
 - grid composition following lesson 2-6 in complete css.

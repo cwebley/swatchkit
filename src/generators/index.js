@@ -21,6 +21,12 @@
 const fs = require("fs");
 const path = require("path");
 
+// Marker written at the top of every generated token-doc HTML file. Used to
+// safely identify and remove stale generated docs (e.g. when an @swatchkit
+// block is removed or renamed) WITHOUT touching hand-authored files a user may
+// have placed in swatchkit/tokens/.
+const GENERATED_TOKEN_DOC_MARKER = "<!-- @swatchkit generated-token-doc -->";
+
 // --- HTML / CSS escaping helpers ---------------------------------------------
 
 function escapeHtml(str) {
@@ -603,17 +609,53 @@ function blockTitle(block) {
 }
 
 /**
+ * Remove previously generated token docs in tokensUiDir that are no longer
+ * wanted. Only deletes files that carry the generated marker AND whose filename
+ * is not in `desiredFilenames` — hand-authored files (no marker) are preserved.
+ * Returns the number of files removed.
+ */
+function cleanStaleGeneratedTokenDocs(tokensUiDir, desiredFilenames) {
+  if (!fs.existsSync(tokensUiDir)) return 0;
+  const desired = new Set(desiredFilenames);
+  let removed = 0;
+
+  for (const entry of fs.readdirSync(tokensUiDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
+    if (desired.has(entry.name)) continue; // still wanted — leave it
+
+    const filePath = path.join(tokensUiDir, entry.name);
+    let content;
+    try {
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    if (content.includes(GENERATED_TOKEN_DOC_MARKER)) {
+      fs.unlinkSync(filePath);
+      removed++;
+    }
+  }
+
+  return removed;
+}
+
+/**
  * Generate token documentation HTML files (one per block) into tokensUiDir.
- * Returns the number of files written. Filenames are <slug>.html; collisions
- * are de-duplicated with a numeric suffix.
+ * Filenames are <slug>.html; collisions are de-duplicated with a numeric
+ * suffix. Each file carries a generated marker so stale docs (from removed or
+ * renamed @swatchkit blocks) are cleaned up on the next build, while leaving
+ * any hand-authored files in the directory untouched.
+ *
+ * Returns { written, removed }.
  */
 function generateTokenDocs(blocks, tokensUiDir) {
   if (!fs.existsSync(tokensUiDir)) {
     fs.mkdirSync(tokensUiDir, { recursive: true });
   }
 
+  // 1. Compute the desired files (slug + marker-prefixed content) up front.
   const usedSlugs = new Map();
-  let written = 0;
+  const desired = []; // { filename, content }
 
   blocks.forEach((block, index) => {
     const html = renderBlockDoc(block);
@@ -628,17 +670,33 @@ function generateTokenDocs(blocks, tokensUiDir) {
       usedSlugs.set(slug, 1);
     }
 
-    const destPath = path.join(tokensUiDir, `${slug}.html`);
+    desired.push({
+      filename: `${slug}.html`,
+      content: `${GENERATED_TOKEN_DOC_MARKER}\n${html}`,
+    });
+  });
+
+  // 2. Remove stale generated docs no longer in the desired set (marker-gated,
+  //    so hand-authored files are preserved).
+  const removed = cleanStaleGeneratedTokenDocs(
+    tokensUiDir,
+    desired.map((d) => d.filename),
+  );
+
+  // 3. Write desired files, skipping unchanged ones (keeps watch mode quiet).
+  let written = 0;
+  for (const { filename, content } of desired) {
+    const destPath = path.join(tokensUiDir, filename);
     const existing = fs.existsSync(destPath)
       ? fs.readFileSync(destPath, "utf-8")
       : null;
-    if (existing !== html) {
-      fs.writeFileSync(destPath, html);
+    if (existing !== content) {
+      fs.writeFileSync(destPath, content);
       written++;
     }
-  });
+  }
 
-  return written;
+  return { written, removed };
 }
 
 module.exports = {

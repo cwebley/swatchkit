@@ -391,6 +391,58 @@ function read(p) {
     : ok("build succeeds after init --app on a CJS project");
 }
 
+// 14. Stale generated token docs are cleaned when a block is removed/renamed,
+//     hand-authored token pages are preserved, and unchanged docs aren't churned.
+{
+  console.log("\n[14] Stale generated token docs cleanup (marker-based)");
+  const dir = freshDir("14-stale-token-docs");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  const tokensCss = path.join(dir, "src/css/global/tokens.css");
+  const tokenDocsDir = path.join(dir, "swatchkit/tokens");
+
+  // Add a temporary token block.
+  fs.appendFileSync(
+    tokensCss,
+    '\n:root {\n  /* @swatchkit colors "Temporary Colors" */\n  --temp-one: #abcabc;\n  /* @swatchkit end */\n}\n',
+  );
+  // Add a hand-authored token page (no generated marker) — must survive.
+  fs.mkdirSync(tokenDocsDir, { recursive: true });
+  fs.writeFileSync(path.join(tokenDocsDir, "manual.html"), "<p>hand authored</p>");
+
+  runSwatchkit("build (with temp block)", dir, []);
+  const tempDoc = path.join(tokenDocsDir, "temporary-colors.html");
+  exists(tempDoc) ? ok("temporary token doc generated") : fail("temporary token doc generated");
+  read(tempDoc).includes("@swatchkit generated-token-doc")
+    ? ok("generated doc carries the marker")
+    : fail("generated doc carries the marker");
+
+  // Rename the block, rebuild.
+  fs.writeFileSync(
+    tokensCss,
+    read(tokensCss).replace(
+      '@swatchkit colors "Temporary Colors"',
+      '@swatchkit colors "Renamed Colors"',
+    ),
+  );
+  runSwatchkit("build (renamed block)", dir, []);
+
+  !exists(tempDoc)
+    ? ok("stale temporary-colors.html removed after rename")
+    : fail("stale temporary-colors.html removed after rename");
+  exists(path.join(tokenDocsDir, "renamed-colors.html"))
+    ? ok("renamed-colors.html generated")
+    : fail("renamed-colors.html generated");
+  exists(path.join(tokenDocsDir, "manual.html"))
+    ? ok("hand-authored manual.html preserved (no marker)")
+    : fail("hand-authored manual.html preserved (no marker)");
+  // Stale page no longer in the built library index.
+  !read(path.join(dir, "dist/swatchkit/index.html")).includes("Temporary Colors")
+    ? ok("stale 'Temporary Colors' gone from library index")
+    : fail("stale 'Temporary Colors' gone from library index");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

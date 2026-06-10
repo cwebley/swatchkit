@@ -1107,13 +1107,21 @@ async function build(settings) {
     }
   }
 
-  // 2.6 Generate token documentation HTML (one rich display per block)
+  // 2.6 Generate token documentation HTML (one rich display per block).
+  // Always call this (even with zero blocks) so stale generated docs from
+  // removed/renamed @swatchkit blocks get cleaned up — but only if the tokens
+  // UI dir already exists, to avoid creating an empty dir in token-less setups.
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
-  if (tokenBlocks.length > 0) {
-    const generated = generateTokenDocs(tokenBlocks, tokensUiDir);
-    if (generated > 0) {
+  if (tokenBlocks.length > 0 || fs.existsSync(tokensUiDir)) {
+    const { written, removed } = generateTokenDocs(tokenBlocks, tokensUiDir);
+    if (written > 0) {
       console.log(
-        `Generated ${generated} token documentation files (swatchkit/tokens/*.html)`,
+        `Generated ${written} token documentation files (swatchkit/tokens/*.html)`,
+      );
+    }
+    if (removed > 0) {
+      console.log(
+        `Removed ${removed} stale generated token doc${removed === 1 ? "" : "s"} (swatchkit/tokens/*.html)`,
       );
     }
   }

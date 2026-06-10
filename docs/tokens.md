@@ -182,4 +182,14 @@ step. Adjust `--vw-min` / `--vw-max` to retune every fluid token at once.
 | :--- | :--- | :--- |
 | `css/global/tokens.css` | **you** | Source of truth. Hand-edit freely. |
 | `css/utilities/utilities.css` | swatchkit | Generated every build. Do not edit. |
+| `swatchkit/tokens/*.html` | swatchkit | One generated doc page per `@swatchkit` block. Do not edit. |
 | any file in `tokenSources` | **you** | Your CSS; SwatchKit only reads it. |
+
+### Generated token doc pages
+
+SwatchKit writes one documentation page per `@swatchkit` block into
+`swatchkit/tokens/*.html`. Each generated file starts with the marker comment
+`<!-- @swatchkit generated-token-doc -->`. When you remove or rename a block,
+the build deletes the stale generated page on the next run (it only removes
+files carrying that marker, so any pages you hand-author in `swatchkit/tokens/`
+are left untouched).
