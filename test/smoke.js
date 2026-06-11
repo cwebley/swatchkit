@@ -443,6 +443,67 @@ function read(p) {
     : fail("stale 'Temporary Colors' gone from library index");
 }
 
+// 15. Token docs merge matching type+label blocks, keep duplicate rows, and
+//     resolve different-type label collisions with type-prefixed slugs.
+{
+  console.log("\n[15] Token docs merge matching labels and use type-prefixed collisions");
+  const dir = freshDir("15-token-doc-merge");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  const tokensCss = path.join(dir, "src/css/global/tokens.css");
+  const tokenDocsDir = path.join(dir, "swatchkit/tokens");
+  fs.writeFileSync(
+    tokensCss,
+    `:root {
+  /* @swatchkit colors "Default" */
+  --color-a: red;
+  --color-primary: red;
+  /* @swatchkit end */
+
+  /* @swatchkit colors "Default" */
+  --color-b: blue;
+  --color-primary: blue;
+  /* @swatchkit end */
+
+  /* @swatchkit spacing "Default" */
+  --space-a: 1rem;
+  /* @swatchkit end */
+}
+`,
+  );
+  fs.mkdirSync(tokenDocsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(tokenDocsDir, "default-2.html"),
+    "<!-- @swatchkit generated-token-doc -->\n<p>stale generated doc</p>",
+  );
+  fs.writeFileSync(path.join(tokenDocsDir, "manual-token.html"), "<p>manual</p>");
+
+  runSwatchkit("build", dir, []);
+
+  const defaultDoc = path.join(tokenDocsDir, "default.html");
+  const spacingDefaultDoc = path.join(tokenDocsDir, "spacing-default.html");
+  const defaultDocContent = read(defaultDoc);
+  exists(defaultDoc) ? ok("same type+label colors merged into default.html") : fail("same type+label colors merged into default.html");
+  !exists(path.join(tokenDocsDir, "colors-default.html")) ? ok("no type prefix without collision for first label") : fail("no type prefix without collision for first label");
+  !exists(path.join(tokenDocsDir, "default-2.html")) ? ok("stale numeric collision doc removed") : fail("stale numeric collision doc removed");
+  exists(spacingDefaultDoc) ? ok("different type same label uses spacing-default.html") : fail("different type same label uses spacing-default.html");
+  exists(path.join(tokenDocsDir, "manual-token.html")) ? ok("hand-authored token doc preserved") : fail("hand-authored token doc preserved");
+
+  defaultDocContent.indexOf("color-a") < defaultDocContent.indexOf("color-b")
+    ? ok("merged token docs preserve parse order")
+    : fail("merged token docs preserve parse order");
+  defaultDocContent.includes("red") && defaultDocContent.includes("blue")
+    ? ok("duplicate token names remain visible as duplicate rows")
+    : fail("duplicate token names remain visible as duplicate rows");
+
+  const util = read(path.join(dir, "src/css/utilities/utilities.css"));
+  const colorUtilityCount = (util.match(/\.color\\:color-primary \{/g) || []).length;
+  const bgUtilityCount = (util.match(/\.background-color\\:color-primary \{/g) || []).length;
+  colorUtilityCount === 1 ? ok("duplicate color utility deduped") : fail("duplicate color utility deduped", `got ${colorUtilityCount}`);
+  bgUtilityCount === 1 ? ok("duplicate background-color utility deduped") : fail("duplicate background-color utility deduped", `got ${bgUtilityCount}`);
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

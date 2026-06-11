@@ -4,7 +4,11 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 const chokidar = require("chokidar");
 const { parseTokenBlocks } = require("./src/token-parser");
-const { generateUtilities, generateTokenDocs } = require("./src/generators");
+const {
+  generateUtilities,
+  generateTokenDocs,
+  mergeTokenBlocksByTypeAndLabel,
+} = require("./src/generators");
 
 /**
  * SwatchKit Build Script
@@ -1096,6 +1100,7 @@ async function build(settings) {
     `Parsing token blocks (${settings.tokenSources.join(", ")})...`,
   );
   const tokenBlocks = parseTokenBlocks(settings.tokenSources, process.cwd());
+  const docTokenBlocks = mergeTokenBlocksByTypeAndLabel(tokenBlocks);
 
   // Generate utilities.css into css/utilities/ from the parsed token blocks.
   if (tokenBlocks.length > 0) {
@@ -1112,8 +1117,8 @@ async function build(settings) {
   // removed/renamed @swatchkit blocks get cleaned up — but only if the tokens
   // UI dir already exists, to avoid creating an empty dir in token-less setups.
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
-  if (tokenBlocks.length > 0 || fs.existsSync(tokensUiDir)) {
-    const { written, removed } = generateTokenDocs(tokenBlocks, tokensUiDir);
+  if (docTokenBlocks.length > 0 || fs.existsSync(tokensUiDir)) {
+    const { written, removed } = generateTokenDocs(docTokenBlocks, tokensUiDir);
     if (written > 0) {
       console.log(
         `Generated ${written} token documentation files (swatchkit/tokens/*.html)`,

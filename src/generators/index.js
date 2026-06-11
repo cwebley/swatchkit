@@ -608,6 +608,53 @@ function blockTitle(block) {
   return block.label || (entry ? entry.defaultTitle : block.type);
 }
 
+function uniqueSlug(slug, usedSlugs) {
+  if (!usedSlugs.has(slug)) return slug;
+
+  let n = 2;
+  let candidate = `${slug}-${n}`;
+  while (usedSlugs.has(candidate)) {
+    n++;
+    candidate = `${slug}-${n}`;
+  }
+  return candidate;
+}
+
+/**
+ * Merge docs blocks that describe the same token type with the same label. This
+ * lets authors keep token blocks near their source CSS while producing one docs
+ * page per logical token group.
+ */
+function mergeTokenBlocksByTypeAndLabel(blocks) {
+  const merged = [];
+  const byKey = new Map();
+
+  for (const block of blocks) {
+    const key = `${block.type}\0${block.label}`;
+    let group = byKey.get(key);
+
+    if (!group) {
+      group = {
+        ...block,
+        tokens: [],
+        sources: [],
+      };
+      byKey.set(key, group);
+      merged.push(group);
+    }
+
+    group.tokens.push(...block.tokens);
+    group.sources.push({
+      sourceFile: block.sourceFile,
+      sourceLine: block.sourceLine,
+      parentSelector: block.parentSelector,
+      atRuleChain: block.atRuleChain,
+    });
+  }
+
+  return merged;
+}
+
 /**
  * Remove previously generated token docs in tokensUiDir that are no longer
  * wanted. Only deletes files that carry the generated marker AND whose filename
@@ -641,8 +688,8 @@ function cleanStaleGeneratedTokenDocs(tokensUiDir, desiredFilenames) {
 
 /**
  * Generate token documentation HTML files (one per block) into tokensUiDir.
- * Filenames are <slug>.html; collisions are de-duplicated with a numeric
- * suffix. Each file carries a generated marker so stale docs (from removed or
+ * Filenames are <slug>.html; collisions try <type>-<slug>.html before falling
+ * back to a numeric suffix. Each file carries a generated marker so stale docs (from removed or
  * renamed @swatchkit blocks) are cleaned up on the next build, while leaving
  * any hand-authored files in the directory untouched.
  *
@@ -661,14 +708,12 @@ function generateTokenDocs(blocks, tokensUiDir) {
     const html = renderBlockDoc(block);
     if (!html) return;
 
-    let slug = blockSlug(block, index);
+    const baseSlug = blockSlug(block, index);
+    let slug = baseSlug;
     if (usedSlugs.has(slug)) {
-      const n = usedSlugs.get(slug) + 1;
-      usedSlugs.set(slug, n);
-      slug = `${slug}-${n}`;
-    } else {
-      usedSlugs.set(slug, 1);
+      slug = uniqueSlug(`${block.type}-${baseSlug}`, usedSlugs);
     }
+    usedSlugs.set(slug, 1);
 
     desired.push({
       filename: `${slug}.html`,
@@ -703,6 +748,7 @@ module.exports = {
   generateUtilities,
   generateUtilitiesCss,
   generateTokenDocs,
+  mergeTokenBlocksByTypeAndLabel,
   renderBlockDoc,
   blockSlug,
   blockTitle,
