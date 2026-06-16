@@ -8,6 +8,7 @@ const {
   generateUtilities,
   generateTokenDocs,
   mergeTokenBlocksByTypeAndLabel,
+  filterTokenDocBlocks,
 } = require("./src/generators");
 
 /**
@@ -254,6 +255,7 @@ ${items.map(p => `  <li><a href="#${p.slug}">${p.name}</a></li>`).join("\n")}
     description,
     previewHref,
     escapedContent,
+    showSource = true,
   }) => {
     return `
 <section id="${slug}" class="region flow">
@@ -261,10 +263,10 @@ ${items.map(p => `  <li><a href="#${p.slug}">${p.name}</a></li>`).join("\n")}
   ${description ? `<div class="swatch-description">${description}</div>` : ""}
   <iframe src="${previewHref}" style="width: 100%; border: var(--stroke); min-height: 25rem; resize: auto; overflow: auto;"></iframe>
   <a href="${previewHref}">View full screen</a>
-  <details>
+  ${showSource ? `<details>
     <summary>View source</summary>
     <pre><code>${escapedContent}</code></pre>
-  </details>
+  </details>` : ""}
 </section>`;
   },
 };
@@ -332,6 +334,8 @@ function resolveSettings(cliOptions, fileConfig) {
   const renderSwatchSection =
     fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
 
+  const tokenDocs = fileConfig.tokenDocs || {};
+
   return {
     swatchkitDir,
     outDir,
@@ -340,6 +344,7 @@ function resolveSettings(cliOptions, fileConfig) {
     exclude,
     cssCopy,
     cssPath,
+    tokenDocs,
     fileConfig, // Expose config to init
     // Internal layout templates (relative to this script)
     internalLayout: path.join(__dirname, "src/swatchkit.html"),
@@ -584,10 +589,23 @@ function generateConfig(cssDir, app = false) {
   // Files or folders to exclude from the pattern library (supports globs).
   // exclude: [],
 
+  // Customize generated token documentation without changing your CSS markers.
+  // Utilities are still generated for parsed tokens even when docs are hidden.
+  // tokenDocs: {
+  //   showSource: false, // generated token docs hide source by default
+  //   colors: {
+  //     columns: ["name", "value", "customProperty"],
+  //     columnLabels: { customProperty: "CSS variable" },
+  //     includeLabels: ["Brand Colors"],
+  //     // excludeLabels: ["Internal Colors"],
+  //   },
+  //   spacing: { enabled: false },
+  // },
+
   // Render callbacks for customizing generated markup.
   // If omitted, SwatchKit uses its default rendering.
   // renderSidebarSection: ({ category, categorySlug, items }) => string,
-  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
+  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent, sourceKind, showSource }) => string,
 }`;
 
   if (projectUsesEsm()) {
@@ -1100,7 +1118,10 @@ async function build(settings) {
     `Parsing token blocks (${settings.tokenSources.join(", ")})...`,
   );
   const tokenBlocks = parseTokenBlocks(settings.tokenSources, process.cwd());
-  const docTokenBlocks = mergeTokenBlocksByTypeAndLabel(tokenBlocks);
+  const docTokenBlocks = filterTokenDocBlocks(
+    mergeTokenBlocksByTypeAndLabel(tokenBlocks),
+    settings.tokenDocs,
+  );
 
   // Generate utilities.css into css/utilities/ from the parsed token blocks.
   if (tokenBlocks.length > 0) {
@@ -1118,7 +1139,11 @@ async function build(settings) {
   // UI dir already exists, to avoid creating an empty dir in token-less setups.
   const tokensUiDir = path.join(settings.swatchkitDir, "tokens");
   if (docTokenBlocks.length > 0 || fs.existsSync(tokensUiDir)) {
-    const { written, removed } = generateTokenDocs(docTokenBlocks, tokensUiDir);
+    const { written, removed } = generateTokenDocs(
+      docTokenBlocks,
+      tokensUiDir,
+      settings.tokenDocs,
+    );
     if (written > 0) {
       console.log(
         `Generated ${written} token documentation files (swatchkit/tokens/*.html)`,
@@ -1166,7 +1191,15 @@ async function build(settings) {
             item === "tokens" ? "Design Tokens" : toTitleCase(item);
           const sectionDestDir = path.join(settings.distPreviewDir, item);
           const swatches = await scanSwatches(itemPath, sectionDestDir, exclude);
-          swatches.forEach((s) => (s.sectionSlug = item));
+          swatches.forEach((s) => {
+            s.sectionSlug = item;
+            if (item === "tokens" && s.content.includes("@swatchkit generated-token-doc")) {
+              s.sourceKind = "generated-token";
+              s.showSource = settings.tokenDocs.showSource === undefined
+                ? false
+                : settings.tokenDocs.showSource;
+            }
+          });
           if (swatches.length > 0) {
             sections[sectionName] = swatches;
           }
@@ -1295,6 +1328,8 @@ async function build(settings) {
           previewHref,
           content: p.content,
           escapedContent,
+          sourceKind: p.sourceKind || null,
+          showSource: p.showSource !== undefined ? p.showSource : true,
         });
       })
       .join("\n");
