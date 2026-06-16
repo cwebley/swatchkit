@@ -126,6 +126,62 @@ or `!important`. Add a utility class in your markup and it takes effect. (Plain
 
 ---
 
+## Customizing generated token docs: `tokenDocs`
+
+Use `tokenDocs` in `swatchkit.config.js` when you want to change what gets
+published in the pattern library without removing `@swatchkit` markers from
+your CSS. These options only affect documentation; utility classes still generate
+from every parsed token block.
+
+```js
+// swatchkit.config.js
+export default {
+  tokenDocs: {
+    // Generated token docs hide their View source details by default.
+    // Set true if you want source shown for generated token docs.
+    showSource: false,
+
+    colors: {
+      // Pick and reorder color table columns.
+      columns: ["name", "value", "customProperty"],
+      columnLabels: {
+        customProperty: "CSS variable",
+      },
+
+      // Publish only selected labels for this token type.
+      includeLabels: ["Brand Colors"],
+
+      // Or hide selected labels instead.
+      // excludeLabels: ["Internal Colors"],
+    },
+
+    // Hide all generated docs for a token type.
+    spacing: { enabled: false },
+  },
+};
+```
+
+Supported color columns:
+
+| Column | Default label | Renders |
+| :--- | :--- | :--- |
+| `name` | Name | Color chip plus token name without the leading `--` |
+| `value` | Value | The authored token value |
+| `customProperty` | Custom Property | `var(--token-name)` |
+| `colorUtility` | Color Utility Class | `.color:<name>` |
+| `backgroundUtility` | BG Utility Class | `.background-color:<name>` |
+
+Per-type filters run after matching `type + label` blocks are merged. For
+example, `includeLabels: ["Brand Colors"]` keeps only generated `colors` docs
+whose label is exactly `Brand Colors`. If both `includeLabels` and
+`excludeLabels` are present, `includeLabels` wins.
+
+Supported token doc type keys are the same as marker types: `colors`,
+`spacing`, `text-sizes`, `text-weights`, `text-leading`, `fonts`, and
+`viewports`.
+
+---
+
 ## Fluid values with `clamp()`
 
 v5 has no build-time clamp generator — fluid type and spacing are written as

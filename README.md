@@ -277,9 +277,22 @@ export default {
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
 
+  // Customize generated token documentation. Utilities still generate from
+  // parsed tokens even when a token doc page is hidden.
+  tokenDocs: {
+    showSource: false, // default for generated token docs
+    colors: {
+      columns: ["name", "value", "customProperty"],
+      columnLabels: { customProperty: "CSS variable" },
+      includeLabels: ["Brand Colors"],
+      // excludeLabels: ["Internal Colors"],
+    },
+    spacing: { enabled: false },
+  },
+
   // Override the default HTML renderers.
   // renderSidebarSection: ({ category, categorySlug, items }) => string,
-  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent }) => string,
+  // renderSwatchSection: ({ slug, name, category, categorySlug, description, previewHref, content, escapedContent, sourceKind, showSource }) => string,
 };
 ```
 
@@ -374,6 +387,11 @@ This documents a "Brand Colors" page and generates `.color:brand`,
 `.background-color:brand`, etc. into `css/utilities/utilities.css`. Relational
 values (`oklch(from …)`, `var(…)`, `clamp(…)`) are preserved verbatim in the
 docs, so relationships are never flattened away.
+
+Generated token docs hide their `View source` details by default. Use
+`tokenDocs` to re-enable source, disable specific token doc pages, include or
+exclude token labels, or customize color-table columns without removing the
+`@swatchkit` markers from your CSS.
 
 Supported token types: `colors`, `spacing`, `text-sizes`, `text-weights`,
 `text-leading`, `fonts`, `viewports`. Blocks can live under any selector (and
