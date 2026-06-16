@@ -504,6 +504,83 @@ function read(p) {
   bgUtilityCount === 1 ? ok("duplicate background-color utility deduped") : fail("duplicate background-color utility deduped", `got ${bgUtilityCount}`);
 }
 
+// 16. tokenDocs config controls generated token docs without affecting utilities.
+{
+  console.log("\n[16] tokenDocs config controls docs, columns, labels, and source");
+  const dir = freshDir("16-token-docs-config");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  cssCopy: true,
+  tokenDocs: {
+    colors: {
+      columns: ["name", "value", "customProperty"],
+      columnLabels: { customProperty: "CSS variable" },
+      includeLabels: ["Colors"],
+    },
+    spacing: { enabled: false },
+  },
+};
+`,
+  );
+
+  runSwatchkit("build", dir, []);
+
+  const index = read(path.join(dir, "dist/swatchkit/index.html"));
+  const tokenSection = index.slice(
+    index.indexOf('id="colors"'),
+    index.indexOf("</section>", index.indexOf('id="colors"')),
+  );
+  !tokenSection.includes("View source")
+    ? ok("generated token docs hide source by default")
+    : fail("generated token docs hide source by default");
+  exists(path.join(dir, "dist/swatchkit/preview/tokens/colors/index.html"))
+    ? ok("included color token doc generated")
+    : fail("included color token doc generated");
+  !exists(path.join(dir, "dist/swatchkit/preview/tokens/spacing/index.html"))
+    ? ok("disabled spacing token doc omitted")
+    : fail("disabled spacing token doc omitted");
+  !index.includes("Color Utility Class") && !index.includes("BG Utility Class")
+    ? ok("color utility columns omitted from library source block")
+    : fail("color utility columns omitted from library source block");
+
+  const colorPreview = read(path.join(dir, "dist/swatchkit/preview/tokens/colors/index.html"));
+  colorPreview.includes("CSS variable")
+    ? ok("color column label override applied")
+    : fail("color column label override applied");
+  !colorPreview.includes("Color Utility Class") && !colorPreview.includes("BG Utility Class")
+    ? ok("color utility columns omitted from token preview")
+    : fail("color utility columns omitted from token preview");
+
+  const util = read(path.join(dir, "src/css/utilities/utilities.css"));
+  util.includes(".padding-block\\:space-xs")
+    ? ok("utilities still generated for hidden spacing docs")
+    : fail("utilities still generated for hidden spacing docs");
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  cssCopy: true,
+  tokenDocs: { showSource: true, colors: { includeLabels: ["Colors"] } },
+};
+`,
+  );
+  runSwatchkit("build with source enabled", dir, []);
+  const sourceEnabledIndex = read(path.join(dir, "dist/swatchkit/index.html"));
+  const sourceEnabledTokenSection = sourceEnabledIndex.slice(
+    sourceEnabledIndex.indexOf('id="colors"'),
+    sourceEnabledIndex.indexOf("</section>", sourceEnabledIndex.indexOf('id="colors"')),
+  );
+  sourceEnabledTokenSection.includes("View source")
+    ? ok("tokenDocs.showSource re-enables source")
+    : fail("tokenDocs.showSource re-enables source");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

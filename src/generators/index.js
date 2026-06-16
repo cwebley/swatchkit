@@ -86,21 +86,64 @@ const TOKEN_DISPLAY_SCRIPT = `<script>
 // Each takes a block and returns an HTML string.
 // =============================================================================
 
-function renderColors(block) {
-  const rows = block.tokens
-    .map((t) => {
-      const base = tokenBaseName(t.name);
-      return `      <tr>
-        <td>
+const DEFAULT_COLOR_COLUMNS = [
+  "name",
+  "value",
+  "customProperty",
+  "colorUtility",
+  "backgroundUtility",
+];
+
+const COLOR_COLUMNS = {
+  name: {
+    label: "Name",
+    cell: (t, base) => `<td>
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap;">
             <div style="background: ${escapeHtml(t.value)}; width: 2rem; height: 2rem; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0;" role="presentation"></div>
             <strong>${escapeHtml(base)}</strong>
           </div>
-        </td>
-        <td><code>${escapeHtml(t.value)}</code></td>
-        <td><code>var(${escapeHtml(t.name)})</code></td>
-        <td><code>.color:${escapeHtml(base)}</code></td>
-        <td><code>.background-color:${escapeHtml(base)}</code></td>
+        </td>`,
+  },
+  value: {
+    label: "Value",
+    cell: (t) => `<td><code>${escapeHtml(t.value)}</code></td>`,
+  },
+  customProperty: {
+    label: "Custom Property",
+    cell: (t) => `<td><code>var(${escapeHtml(t.name)})</code></td>`,
+  },
+  colorUtility: {
+    label: "Color Utility Class",
+    cell: (_t, base) => `<td><code>.color:${escapeHtml(base)}</code></td>`,
+  },
+  backgroundUtility: {
+    label: "BG Utility Class",
+    cell: (_t, base) => `<td><code>.background-color:${escapeHtml(base)}</code></td>`,
+  },
+};
+
+function colorColumns(options = {}) {
+  if (!Array.isArray(options.columns)) return DEFAULT_COLOR_COLUMNS;
+
+  const columns = options.columns.filter((key) => COLOR_COLUMNS[key]);
+  return columns.length > 0 ? columns : DEFAULT_COLOR_COLUMNS;
+}
+
+function renderColors(block, options = {}) {
+  const columns = colorColumns(options);
+  const labels = options.columnLabels || {};
+  const headers = columns
+    .map((key) => `      <th>${escapeHtml(labels[key] || COLOR_COLUMNS[key].label)}</th>`)
+    .join("\n");
+
+  const rows = block.tokens
+    .map((t) => {
+      const base = tokenBaseName(t.name);
+      const cells = columns
+        .map((key) => COLOR_COLUMNS[key].cell(t, base))
+        .join("\n        ");
+      return `      <tr>
+${cells}
       </tr>`;
     })
     .join("\n");
@@ -108,11 +151,7 @@ function renderColors(block) {
   return `<table class="color-table">
   <thead>
     <tr>
-      <th>Name</th>
-      <th>Value</th>
-      <th>Custom Property</th>
-      <th>Color Utility Class</th>
-      <th>BG Utility Class</th>
+${headers}
     </tr>
   </thead>
   <tbody>
@@ -581,10 +620,33 @@ function generateUtilities(blocks, utilitiesDir) {
 /**
  * Render the documentation HTML for a single block.
  */
-function renderBlockDoc(block) {
+function tokenDocOptions(tokenDocs, type) {
+  return (tokenDocs && tokenDocs[type]) || {};
+}
+
+function tokenDocBlockEnabled(block, tokenDocs = {}) {
+  const options = tokenDocOptions(tokenDocs, block.type);
+  if (options.enabled === false) return false;
+
+  if (Array.isArray(options.includeLabels)) {
+    return options.includeLabels.includes(block.label);
+  }
+
+  if (Array.isArray(options.excludeLabels)) {
+    return !options.excludeLabels.includes(block.label);
+  }
+
+  return true;
+}
+
+function filterTokenDocBlocks(blocks, tokenDocs = {}) {
+  return blocks.filter((block) => tokenDocBlockEnabled(block, tokenDocs));
+}
+
+function renderBlockDoc(block, tokenDocs = {}) {
   const entry = TYPE_REGISTRY[block.type];
   if (!entry) return null;
-  return entry.doc(block);
+  return entry.doc(block, tokenDocOptions(tokenDocs, block.type));
 }
 
 /**
@@ -695,7 +757,7 @@ function cleanStaleGeneratedTokenDocs(tokensUiDir, desiredFilenames) {
  *
  * Returns { written, removed }.
  */
-function generateTokenDocs(blocks, tokensUiDir) {
+function generateTokenDocs(blocks, tokensUiDir, tokenDocs = {}) {
   if (!fs.existsSync(tokensUiDir)) {
     fs.mkdirSync(tokensUiDir, { recursive: true });
   }
@@ -705,7 +767,7 @@ function generateTokenDocs(blocks, tokensUiDir) {
   const desired = []; // { filename, content }
 
   blocks.forEach((block, index) => {
-    const html = renderBlockDoc(block);
+    const html = renderBlockDoc(block, tokenDocs);
     if (!html) return;
 
     const baseSlug = blockSlug(block, index);
@@ -749,6 +811,7 @@ module.exports = {
   generateUtilitiesCss,
   generateTokenDocs,
   mergeTokenBlocksByTypeAndLabel,
+  filterTokenDocBlocks,
   renderBlockDoc,
   blockSlug,
   blockTitle,
