@@ -277,6 +277,17 @@ export default {
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
 
+  // Control sidebar section order and swatch order inside each section.
+  // Order lists are partial: listed slugs come first; unlisted items follow
+  // alphabetically. Ordering runs after exclude and tokenDocs filters.
+  order: {
+    sections: ["tokens", "components", "compositions", "utilities", "patterns"],
+    swatches: {
+      tokens: ["aries-brand-colors", "colors", "fonts"],
+      components: ["button", "card"],
+    },
+  },
+
   // Customize generated token documentation. Utilities still generate from
   // parsed tokens even when a token doc page is hidden.
   tokenDocs: {
@@ -297,6 +308,14 @@ export default {
 ```
 
 SwatchKit looks for the config in this order: `swatchkit.config.cjs` (CJS), `swatchkit.config.mjs` (ESM), `swatchkit.config.js` (depends on project's `package.json#type`). Rename to `.cjs` if you need CJS syntax in an ESM project.
+
+### Ordering sections and swatches
+
+Use `order` when you want important sections or swatches to appear first in the sidebar. Entries are slugs: section folder names such as `components` or `compositions`, `tokens` for generated token docs, and `patterns` for root-level swatches.
+
+`order` is not an include list. It only sorts items that still exist after `exclude` and `tokenDocs` filters run. Unknown slugs are ignored, and wildcards are not supported in order lists.
+
+When an order list is configured, listed slugs come first in the given order. Any unlisted items follow alphabetically.
 
 ## CLI
 

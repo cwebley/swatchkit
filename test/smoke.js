@@ -581,6 +581,73 @@ function read(p) {
     : fail("tokenDocs.showSource re-enables source");
 }
 
+// 17. order config controls sections and swatches after excludes/filters.
+{
+  console.log("\n[17] order config controls section and swatch order");
+  const dir = freshDir("17-order-config");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  const tokensCss = path.join(dir, "src/css/global/tokens.css");
+  fs.appendFileSync(
+    tokensCss,
+    '\n:root {\n  /* @swatchkit colors "Aries Brand Colors" */\n  --aries-brand: #123456;\n  /* @swatchkit end */\n  /* @swatchkit colors "Alternate Colors" */\n  --alternate-brand: #abcdef;\n  /* @swatchkit end */\n}\n',
+  );
+
+  const compositionsDir = path.join(dir, "swatchkit/compositions");
+  fs.mkdirSync(path.join(compositionsDir, "zeta"), { recursive: true });
+  fs.writeFileSync(path.join(compositionsDir, "zeta/index.html"), "<p>Zeta</p>");
+  fs.mkdirSync(path.join(compositionsDir, "alpha"), { recursive: true });
+  fs.writeFileSync(path.join(compositionsDir, "alpha/index.html"), "<p>Alpha</p>");
+  fs.mkdirSync(path.join(compositionsDir, "hidden"), { recursive: true });
+  fs.writeFileSync(path.join(compositionsDir, "hidden/index.html"), "<p>Hidden</p>");
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  cssCopy: true,
+  exclude: ["hidden"],
+  order: {
+    sections: ["compositions", "tokens", "missing-section"],
+    swatches: {
+      tokens: ["aries-brand-colors", "missing-token"],
+      compositions: ["zeta", "hidden"],
+    },
+  },
+};
+`,
+  );
+
+  runSwatchkit("build", dir, []);
+  const index = read(path.join(dir, "dist/swatchkit/index.html"));
+
+  index.indexOf("Compositions") < index.indexOf("Design Tokens")
+    ? ok("order.sections puts compositions before tokens")
+    : fail("order.sections puts compositions before tokens");
+
+  const tokenSidebar = index.slice(
+    index.indexOf("Design Tokens"),
+    index.indexOf("Patterns", index.indexOf("Design Tokens")),
+  );
+  tokenSidebar.indexOf('href="#aries-brand-colors"') < tokenSidebar.indexOf('href="#alternate-colors"') &&
+    tokenSidebar.indexOf('href="#alternate-colors"') < tokenSidebar.indexOf('href="#colors"') &&
+    tokenSidebar.indexOf('href="#colors"') < tokenSidebar.indexOf('href="#fonts"')
+    ? ok("order.swatches.tokens pins Aries then sorts unlisted token docs")
+    : fail("order.swatches.tokens pins Aries then sorts unlisted token docs");
+
+  const compositionsSidebar = index.slice(
+    index.indexOf("Compositions"),
+    index.indexOf("Design Tokens"),
+  );
+  compositionsSidebar.indexOf("Zeta") < compositionsSidebar.indexOf("Alpha")
+    ? ok("order.swatches.compositions pins zeta before alpha")
+    : fail("order.swatches.compositions pins zeta before alpha");
+  !compositionsSidebar.includes("Hidden")
+    ? ok("exclude still wins over order")
+    : fail("exclude still wins over order");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

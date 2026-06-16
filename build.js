@@ -239,6 +239,33 @@ function toTitleCase(str) {
   return str.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+function categorySlug(category) {
+  if (category === "Design Tokens") return "tokens";
+  if (category === "Patterns") return "patterns";
+  return category.toLowerCase().replace(/\s+/g, "-");
+}
+
+function applyConfiguredOrder(items, orderedSlugs, getSlug, getLabel) {
+  if (!Array.isArray(orderedSlugs)) return items;
+
+  const rank = new Map(orderedSlugs.map((slug, index) => [slug, index]));
+  return items.slice().sort((a, b) => {
+    const aRank = rank.has(getSlug(a)) ? rank.get(getSlug(a)) : Number.MAX_SAFE_INTEGER;
+    const bRank = rank.has(getSlug(b)) ? rank.get(getSlug(b)) : Number.MAX_SAFE_INTEGER;
+
+    if (aRank !== bRank) return aRank - bRank;
+    return getLabel(a).localeCompare(getLabel(b));
+  });
+}
+
+function defaultSectionSort(a, b) {
+  if (a === "Design Tokens") return -1;
+  if (b === "Design Tokens") return 1;
+  if (a === "Patterns") return 1;
+  if (b === "Patterns") return -1;
+  return a.localeCompare(b);
+}
+
 const defaultRenderers = {
   renderSidebarSection: ({ category, categorySlug, items }) => {
     return `<h2>${category}</h2>
@@ -335,6 +362,7 @@ function resolveSettings(cliOptions, fileConfig) {
     fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
 
   const tokenDocs = fileConfig.tokenDocs || {};
+  const order = fileConfig.order || {};
 
   return {
     swatchkitDir,
@@ -345,6 +373,7 @@ function resolveSettings(cliOptions, fileConfig) {
     cssCopy,
     cssPath,
     tokenDocs,
+    order,
     fileConfig, // Expose config to init
     // Internal layout templates (relative to this script)
     internalLayout: path.join(__dirname, "src/swatchkit.html"),
@@ -588,6 +617,17 @@ function generateConfig(cssDir, app = false) {
 
   // Files or folders to exclude from the pattern library (supports globs).
   // exclude: [],
+
+  // Control sidebar section order and swatch order inside each section.
+  // Order lists are partial: listed slugs come first; unlisted items follow
+  // alphabetically. Ordering runs after exclude and tokenDocs filters.
+  // order: {
+  //   sections: ["tokens", "components", "compositions", "utilities", "patterns"],
+  //   swatches: {
+  //     tokens: ["aries-brand-colors", "colors", "fonts"],
+  //     components: ["button", "card"],
+  //   },
+  // },
 
   // Customize generated token documentation without changing your CSS markers.
   // Utilities are still generated for parsed tokens even when docs are hidden.
@@ -1201,7 +1241,13 @@ async function build(settings) {
             }
           });
           if (swatches.length > 0) {
-            sections[sectionName] = swatches;
+            const sectionOrder = settings.order.swatches && settings.order.swatches[item];
+            sections[sectionName] = applyConfiguredOrder(
+              swatches,
+              sectionOrder,
+              (swatch) => swatch.slug,
+              (swatch) => swatch.name,
+            );
           }
         }
       }
@@ -1270,7 +1316,13 @@ async function build(settings) {
     }
 
     if (rootSwatches.length > 0) {
-      sections["Patterns"] = rootSwatches;
+      const sectionOrder = settings.order.swatches && settings.order.swatches.patterns;
+      sections["Patterns"] = applyConfiguredOrder(
+        rootSwatches,
+        sectionOrder,
+        (swatch) => swatch.slug,
+        (swatch) => swatch.name,
+      );
     }
   }
 
@@ -1280,24 +1332,21 @@ async function build(settings) {
   let sidebarLinks = "";
   let swatchBlocks = "";
 
-  // Helper to sort sections: Tokens first, then A-Z, Patterns last
-  const sortedKeys = Object.keys(sections).sort((a, b) => {
-    if (a === "Design Tokens") return -1;
-    if (b === "Design Tokens") return 1;
-    if (a === "Patterns") return 1;
-    if (b === "Patterns") return -1;
-    return a.localeCompare(b);
-  });
+  const sectionEntries = Object.keys(sections).map((category) => ({
+    category,
+    slug: categorySlug(category),
+  }));
+  const sortedSections = Array.isArray(settings.order.sections)
+    ? applyConfiguredOrder(
+        sectionEntries,
+        settings.order.sections,
+        (section) => section.slug,
+        (section) => section.category,
+      )
+    : sectionEntries.sort((a, b) => defaultSectionSort(a.category, b.category));
 
-  sortedKeys.forEach((category) => {
+  sortedSections.forEach(({ category, slug: categorySlug }) => {
     const swatches = sections[category];
-
-    const categorySlug =
-      category === "Design Tokens"
-        ? "tokens"
-        : category === "Patterns"
-          ? "patterns"
-          : category.toLowerCase().replace(/\s+/g, "-");
 
     sidebarLinks +=
       settings.renderSidebarSection({
@@ -1353,7 +1402,7 @@ async function build(settings) {
 
   if (previewLayoutContent) {
     let previewCount = 0;
-    sortedKeys.forEach((category) => {
+    sortedSections.forEach(({ category }) => {
       const swatches = sections[category];
       swatches.forEach((p) => {
         // Each swatch is output as a directory with index.html inside.
