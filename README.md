@@ -279,7 +279,7 @@ export default {
 
   // Control sidebar section order and swatch order inside each section.
   // Order lists are partial: listed slugs come first; unlisted items follow
-  // alphabetically. Ordering runs after exclude and tokenDocs filters.
+  // alphabetically. Ordering runs after exclude and tokenBlocks docs filters.
   order: {
     sections: ["tokens", "components", "compositions", "utilities", "patterns"],
     swatches: {
@@ -288,17 +288,27 @@ export default {
     },
   },
 
-  // Customize generated token documentation. Utilities still generate from
-  // parsed tokens even when a token doc page is hidden.
+  // Control generated outputs from @swatchkit token blocks. CSS token blocks
+  // define token groups; config controls generated outputs.
+  tokenBlocks: {
+    textSizes: {
+      docs: { excludeLabels: ["Steps"] },
+      utilities: { excludeLabels: ["Typography"] },
+      labels: {
+        Steps: { docs: false, utilities: true },
+        Typography: { docs: true, utilities: false },
+      },
+    },
+  },
+
+  // Customize generated token documentation presentation. Output visibility is
+  // controlled by tokenBlocks, not tokenDocs.
   tokenDocs: {
     showSource: false, // default for generated token docs
     colors: {
       columns: ["name", "value", "customProperty"],
       columnLabels: { customProperty: "CSS variable" },
-      includeLabels: ["Brand Colors"],
-      // excludeLabels: ["Internal Colors"],
     },
-    spacing: { enabled: false },
   },
 
   // Override the default HTML renderers.
@@ -313,7 +323,7 @@ SwatchKit looks for the config in this order: `swatchkit.config.cjs` (CJS), `swa
 
 Use `order` when you want important sections or swatches to appear first in the sidebar. Entries are slugs: section folder names such as `components` or `compositions`, `tokens` for generated token docs, and `patterns` for root-level swatches.
 
-`order` is not an include list. It only sorts items that still exist after `exclude` and `tokenDocs` filters run. Unknown slugs are ignored, and wildcards are not supported in order lists.
+`order` is not an include list. It only sorts items that still exist after `exclude` and `tokenBlocks` docs filters run. Unknown slugs are ignored, and wildcards are not supported in order lists.
 
 When an order list is configured, listed slugs come first in the given order. Any unlisted items follow alphabetically.
 
@@ -348,7 +358,7 @@ swatchkit [command] [options]
 
 `swatchkit` (the build command) does four things:
 
-1. **Parses `@swatchkit` token blocks** from the CSS files in `tokenSources` (your hand-written tokens — the source of truth). It regenerates `css/utilities/utilities.css` (utility classes derived from those tokens) and the token-documentation HTML under `swatchkit/tokens/`. Your token CSS is never modified — only `utilities.css` is generated. See [docs/tokens.md](./docs/tokens.md).
+1. **Parses `@swatchkit` token blocks** from the CSS files in `tokenSources` (your hand-written tokens — the source of truth). It resolves `tokenBlocks` output controls, regenerates `css/utilities/utilities.css`, and writes enabled token-documentation HTML under `swatchkit/tokens/`. Your token CSS is never modified — only generated outputs are written. See [docs/tokens.md](./docs/tokens.md).
 2. **Copies CSS** from `cssDir` to `outDir/css` (only when `cssCopy: true`).
 3. **Scans `swatchkit/`** for swatches, renders each one. Static `index.html` swatches go through unchanged. Dynamic `index.js` swatches are imported and executed for their HTML. Sibling assets are copied alongside.
 4. **Writes** `outDir/index.html` (the library) and one `outDir/preview/{section}/{id}/index.html` per swatch (full-screen previews).
@@ -390,7 +400,8 @@ In watch mode, SwatchKit polls for its output directory and rebuilds if it was w
 
 SwatchKit is **CSS-first**: tokens live in plain CSS that you own and hand-edit.
 You mark groups with `@swatchkit` comment blocks, and SwatchKit reads them to
-document each group and to generate utility classes.
+document each group and generate utility classes. Use `tokenBlocks` config when
+you need to disable docs or utilities for a type or label.
 
 ```css
 /* src/css/global/tokens.css */
@@ -408,9 +419,14 @@ values (`oklch(from …)`, `var(…)`, `clamp(…)`) are preserved verbatim in t
 docs, so relationships are never flattened away.
 
 Generated token docs hide their `View source` details by default. Use
-`tokenDocs` to re-enable source, disable specific token doc pages, include or
-exclude token labels, or customize color-table columns without removing the
-`@swatchkit` markers from your CSS.
+`tokenDocs` to re-enable source or customize docs presentation, such as
+color-table columns. Use `tokenBlocks` to control whether docs or utilities are
+generated for specific token labels.
+
+## Migrating From v5 To v6
+
+v6 moves generated-output controls out of `tokenDocs` and into `tokenBlocks`.
+`tokenDocs` is now presentation-only. See the [v6 migration guide](./docs/migration-v6.md) for detailed examples.
 
 Supported token types: `colors`, `spacing`, `text-sizes`, `text-weights`,
 `text-leading`, `fonts`, `viewports`. Blocks can live under any selector (and

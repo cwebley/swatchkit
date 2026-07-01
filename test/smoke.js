@@ -504,9 +504,9 @@ function read(p) {
   bgUtilityCount === 1 ? ok("duplicate background-color utility deduped") : fail("duplicate background-color utility deduped", `got ${bgUtilityCount}`);
 }
 
-// 16. tokenDocs config controls generated token docs without affecting utilities.
+// 16. tokenBlocks controls token outputs; tokenDocs controls presentation only.
 {
-  console.log("\n[16] tokenDocs config controls docs, columns, labels, and source");
+  console.log("\n[16] tokenBlocks controls docs/utilities; tokenDocs controls presentation");
   const dir = freshDir("16-token-docs-config");
   fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
   runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
@@ -516,13 +516,24 @@ function read(p) {
     `export default {
   cssDir: "./src/css",
   cssCopy: true,
+  tokenBlocks: {
+    colors: {
+      docs: { includeLabels: "Colors" },
+    },
+    spacing: {
+      docs: { includeLabels: [] },
+    },
+    textSizes: {
+      labels: {
+        "Text Sizes": { utilities: false },
+      },
+    },
+  },
   tokenDocs: {
     colors: {
       columns: ["name", "value", "customProperty"],
       columnLabels: { customProperty: "CSS variable" },
-      includeLabels: ["Colors"],
     },
-    spacing: { enabled: false },
   },
 };
 `,
@@ -560,13 +571,22 @@ function read(p) {
   util.includes(".padding-block\\:space-xs")
     ? ok("utilities still generated for hidden spacing docs")
     : fail("utilities still generated for hidden spacing docs");
+  !util.includes(".font-size\\:step-0")
+    ? ok("utilities omitted for tokenBlocks utilities:false")
+    : fail("utilities omitted for tokenBlocks utilities:false");
+
+  const textSizesPreview = read(path.join(dir, "dist/swatchkit/preview/tokens/text-sizes/index.html"));
+  textSizesPreview && !textSizesPreview.includes(".font-size:step-0")
+    ? ok("token docs omit disabled utility examples")
+    : fail("token docs omit disabled utility examples");
 
   fs.writeFileSync(
     path.join(dir, "swatchkit.config.js"),
     `export default {
   cssDir: "./src/css",
   cssCopy: true,
-  tokenDocs: { showSource: true, colors: { includeLabels: ["Colors"] } },
+  tokenBlocks: { colors: { docs: { includeLabels: ["Colors"] } } },
+  tokenDocs: { showSource: true },
 };
 `,
   );
@@ -646,6 +666,65 @@ function read(p) {
   !compositionsSidebar.includes("Hidden")
     ? ok("exclude still wins over order")
     : fail("exclude still wins over order");
+}
+
+// 18. v6 config validation fails fast for removed/invalid token output config.
+{
+  console.log("\n[18] v6 token output config validation");
+  const dir = freshDir("18-v6-config-validation");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  tokenDocs: { colors: { includeLabels: ["Colors"] } },
+};
+`,
+  );
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+    fail("removed tokenDocs includeLabels errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("tokenDocs.colors.includeLabels was removed in v6")
+      ? ok("removed tokenDocs includeLabels errors")
+      : fail("removed tokenDocs includeLabels errors", (e.stderr || e.stdout || e.message).toString());
+  }
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  tokenBlocks: { textSizes: {}, "text-sizes": {} },
+};
+`,
+  );
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+    fail("tokenBlocks alias collision errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes('tokenBlocks defines both "textSizes" and "text-sizes"')
+      ? ok("tokenBlocks alias collision errors")
+      : fail("tokenBlocks alias collision errors", (e.stderr || e.stdout || e.message).toString());
+  }
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  cssDir: "./src/css",
+  tokenBlocks: { viewports: { labels: { Viewports: { utilities: true } } } },
+};
+`,
+  );
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+    fail("viewports utilities:true errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("viewports does not generate utilities")
+      ? ok("viewports utilities:true errors")
+      : fail("viewports utilities:true errors", (e.stderr || e.stdout || e.message).toString());
+  }
 }
 
 // Cleanup

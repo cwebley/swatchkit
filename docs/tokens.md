@@ -1,4 +1,4 @@
-# Design Tokens (v5)
+# Design Tokens (v6)
 
 SwatchKit is **CSS-first**: your design tokens live in plain CSS that you own
 and hand-edit. SwatchKit never generates token CSS from a separate format — it
@@ -118,6 +118,10 @@ The utility class suffix is the **full custom-property name** (minus the leading
 Utilities reference `var(--name)`, so they theme correctly at runtime. Identical
 rules produced by multiple variant blocks are deduplicated.
 
+Utility controls are block-level emission controls, not global token-name deny
+lists. If one disabled block and one enabled block both contain `--step-0`, the
+`.font-size:step-0` rule still generates from the enabled block.
+
 Utilities **do not use `!important`**. Instead, `main.css` imports the generated
 `utilities.css` into a `utilities` cascade layer that is declared **last**, so a
 utility class wins over component and app styles by layer order — not specificity
@@ -126,12 +130,57 @@ or `!important`. Add a utility class in your markup and it takes effect. (Plain
 
 ---
 
+## Controlling generated outputs: `tokenBlocks`
+
+Use `tokenBlocks` in `swatchkit.config.js` when you want to control generated
+documentation and utility classes without removing `@swatchkit` markers from
+your CSS. CSS token blocks define token groups; config controls generated
+outputs.
+
+Output defaults are:
+
+- `docs: true`
+- `utilities: true` when the token type has utility classes
+- `utilities: false` for `viewports`
+
+```js
+// swatchkit.config.js
+export default {
+  tokenBlocks: {
+    textSizes: {
+      docs: {
+        excludeLabels: ["Steps"],
+      },
+      utilities: {
+        excludeLabels: ["Typography"],
+      },
+      labels: {
+        Steps: { docs: false, utilities: true },
+        Typography: { docs: true, utilities: false },
+      },
+    },
+  },
+};
+```
+
+`includeLabels` and `excludeLabels` accept a string or an array of strings. If
+both are set, `includeLabels` is applied first and `excludeLabels` removes from
+that included set. Exact label entries in `labels` win over broad filters.
+
+Supported `tokenBlocks` type keys are `colors`, `spacing`, `textSizes`,
+`textWeights`, `textLeading`, `fonts`, and `viewports`. Canonical CSS marker keys
+such as `"text-sizes"` also work, but do not configure both an alias and its
+canonical key in the same config.
+
+When utilities are disabled for a docs page, the generated docs omit utility
+class examples for that page.
+
+---
+
 ## Customizing generated token docs: `tokenDocs`
 
-Use `tokenDocs` in `swatchkit.config.js` when you want to change what gets
-published in the pattern library without removing `@swatchkit` markers from
-your CSS. These options only affect documentation; utility classes still generate
-from every parsed token block.
+Use `tokenDocs` only for documentation presentation. In v6 it no longer controls
+whether docs are generated; use `tokenBlocks` for output visibility.
 
 ```js
 // swatchkit.config.js
@@ -147,16 +196,7 @@ export default {
       columnLabels: {
         customProperty: "CSS variable",
       },
-
-      // Publish only selected labels for this token type.
-      includeLabels: ["Brand Colors"],
-
-      // Or hide selected labels instead.
-      // excludeLabels: ["Internal Colors"],
     },
-
-    // Hide all generated docs for a token type.
-    spacing: { enabled: false },
   },
 };
 ```
@@ -171,20 +211,17 @@ Supported color columns:
 | `colorUtility` | Color Utility Class | `.color:<name>` |
 | `backgroundUtility` | BG Utility Class | `.background-color:<name>` |
 
-Per-type filters run after matching `type + label` blocks are merged. For
-example, `includeLabels: ["Brand Colors"]` keeps only generated `colors` docs
-whose label is exactly `Brand Colors`. If both `includeLabels` and
-`excludeLabels` are present, `includeLabels` wins.
+If utilities are disabled through `tokenBlocks`, utility columns are automatically
+omitted from color docs even if they are listed in `tokenDocs.colors.columns`.
 
-Supported token doc type keys are the same as marker types: `colors`,
-`spacing`, `text-sizes`, `text-weights`, `text-leading`, `fonts`, and
-`viewports`.
+`tokenDocs.enabled`, `tokenDocs.includeLabels`, and `tokenDocs.excludeLabels`
+were removed in v6. Use `tokenBlocks` instead.
 
 ---
 
 ## Fluid values with `clamp()`
 
-v5 has no build-time clamp generator — fluid type and spacing are written as
+v6 has no build-time clamp generator — fluid type and spacing are written as
 plain, universally-supported `clamp()`. To keep them tweakable, store the
 viewport bounds and rem base as **unitless** config variables and apply units at
 the leaves:

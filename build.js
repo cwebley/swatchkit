@@ -8,7 +8,9 @@ const {
   generateUtilities,
   generateTokenDocs,
   mergeTokenBlocksByTypeAndLabel,
-  filterTokenDocBlocks,
+  normalizeTokenBlocksConfig,
+  validateTokenDocsConfig,
+  withResolvedOutputs,
 } = require("./src/generators");
 
 /**
@@ -362,6 +364,8 @@ function resolveSettings(cliOptions, fileConfig) {
     fileConfig.renderSwatchSection || defaultRenderers.renderSwatchSection;
 
   const tokenDocs = fileConfig.tokenDocs || {};
+  validateTokenDocsConfig(tokenDocs);
+  const tokenBlocks = normalizeTokenBlocksConfig(fileConfig.tokenBlocks || {});
   const order = fileConfig.order || {};
 
   return {
@@ -373,6 +377,7 @@ function resolveSettings(cliOptions, fileConfig) {
     cssCopy,
     cssPath,
     tokenDocs,
+    tokenBlocks,
     order,
     fileConfig, // Expose config to init
     // Internal layout templates (relative to this script)
@@ -620,7 +625,7 @@ function generateConfig(cssDir, app = false) {
 
   // Control sidebar section order and swatch order inside each section.
   // Order lists are partial: listed slugs come first; unlisted items follow
-  // alphabetically. Ordering runs after exclude and tokenDocs filters.
+  // alphabetically. Ordering runs after exclude and tokenBlocks docs filters.
   // order: {
   //   sections: ["tokens", "components", "compositions", "utilities", "patterns"],
   //   swatches: {
@@ -629,17 +634,28 @@ function generateConfig(cssDir, app = false) {
   //   },
   // },
 
-  // Customize generated token documentation without changing your CSS markers.
-  // Utilities are still generated for parsed tokens even when docs are hidden.
+  // Control generated outputs from @swatchkit token blocks. CSS token blocks
+  // define token groups; config controls generated outputs. Omitted output keys
+  // use defaults: docs true, utilities true when supported.
+  // tokenBlocks: {
+  //   textSizes: {
+  //     docs: { excludeLabels: ["Steps"] },
+  //     utilities: { excludeLabels: ["Typography"] },
+  //     labels: {
+  //       Steps: { docs: false, utilities: true },
+  //       Typography: { docs: true, utilities: false },
+  //     },
+  //   },
+  // },
+
+  // Customize generated token documentation presentation. Output visibility is
+  // controlled by tokenBlocks, not tokenDocs.
   // tokenDocs: {
   //   showSource: false, // generated token docs hide source by default
   //   colors: {
   //     columns: ["name", "value", "customProperty"],
   //     columnLabels: { customProperty: "CSS variable" },
-  //     includeLabels: ["Brand Colors"],
-  //     // excludeLabels: ["Internal Colors"],
   //   },
-  //   spacing: { enabled: false },
   // },
 
   // Render callbacks for customizing generated markup.
@@ -1158,19 +1174,20 @@ async function build(settings) {
     `Parsing token blocks (${settings.tokenSources.join(", ")})...`,
   );
   const tokenBlocks = parseTokenBlocks(settings.tokenSources, process.cwd());
-  const docTokenBlocks = filterTokenDocBlocks(
-    mergeTokenBlocksByTypeAndLabel(tokenBlocks),
-    settings.tokenDocs,
-  );
+  const utilityTokenBlocks = tokenBlocks
+    .map((block) => withResolvedOutputs(block, settings.tokenBlocks))
+    .filter((block) => block.outputs.utilities);
+  const docTokenBlocks = mergeTokenBlocksByTypeAndLabel(tokenBlocks)
+    .map((block) => withResolvedOutputs(block, settings.tokenBlocks))
+    .filter((block) => block.outputs.docs);
 
-  // Generate utilities.css into css/utilities/ from the parsed token blocks.
-  if (tokenBlocks.length > 0) {
-    const wrote = generateUtilities(tokenBlocks, settings.utilitiesDir);
-    if (wrote) {
-      console.log(
-        `Generated utilities (${path.relative(process.cwd(), path.join(settings.utilitiesDir, "utilities.css"))})`,
-      );
-    }
+  // Generate utilities.css every build, even when no utility blocks remain, so
+  // stale generated utility rules are cleared after config or token changes.
+  const wroteUtilities = generateUtilities(utilityTokenBlocks, settings.utilitiesDir);
+  if (wroteUtilities) {
+    console.log(
+      `Generated utilities (${path.relative(process.cwd(), path.join(settings.utilitiesDir, "utilities.css"))})`,
+    );
   }
 
   // 2.6 Generate token documentation HTML (one rich display per block).

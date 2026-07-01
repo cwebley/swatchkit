@@ -81,6 +81,10 @@ const TOKEN_DISPLAY_SCRIPT = `<script>
 })();
 </script>`;
 
+function outputEnabled(outputs, outputName) {
+  return !outputs || outputs[outputName] !== false;
+}
+
 // =============================================================================
 // Documentation renderers (one per token type)
 // Each takes a block and returns an HTML string.
@@ -122,15 +126,24 @@ const COLOR_COLUMNS = {
   },
 };
 
-function colorColumns(options = {}) {
-  if (!Array.isArray(options.columns)) return DEFAULT_COLOR_COLUMNS;
+const COLOR_UTILITY_COLUMNS = new Set(["colorUtility", "backgroundUtility"]);
 
-  const columns = options.columns.filter((key) => COLOR_COLUMNS[key]);
-  return columns.length > 0 ? columns : DEFAULT_COLOR_COLUMNS;
+function colorColumns(options = {}, outputs = {}) {
+  const allowUtilities = outputEnabled(outputs, "utilities");
+  const defaultColumns = allowUtilities
+    ? DEFAULT_COLOR_COLUMNS
+    : DEFAULT_COLOR_COLUMNS.filter((key) => !COLOR_UTILITY_COLUMNS.has(key));
+
+  if (!Array.isArray(options.columns)) return defaultColumns;
+
+  const columns = options.columns.filter(
+    (key) => COLOR_COLUMNS[key] && (allowUtilities || !COLOR_UTILITY_COLUMNS.has(key)),
+  );
+  return columns.length > 0 ? columns : defaultColumns;
 }
 
-function renderColors(block, options = {}) {
-  const columns = colorColumns(options);
+function renderColors(block, options = {}, outputs = {}) {
+  const columns = colorColumns(options, outputs);
   const labels = options.columnLabels || {};
   const headers = columns
     .map((key) => `      <th>${escapeHtml(labels[key] || COLOR_COLUMNS[key].label)}</th>`)
@@ -182,16 +195,19 @@ ${rows}
 </style>`;
 }
 
-function renderTextSizes(block) {
+function renderTextSizes(block, _options = {}, outputs = {}) {
+  const showUtilities = outputEnabled(outputs, "utilities");
   const steps = block.tokens
     .map((t) => {
       const base = tokenBaseName(t.name);
+      const utility = showUtilities
+        ? `      <code>.font-size:${escapeHtml(base)}</code>\n`
+        : "";
       return `  <div class="type-step">
     <div class="type-sample" style="font-size: var(${escapeHtml(t.name)})">${escapeHtml(base)}</div>
     <div class="type-meta">
       <code>var(${escapeHtml(t.name)})</code>
-      <code>.font-size:${escapeHtml(base)}</code>
-      <code>${escapeHtml(t.value)}</code>
+${utility}      <code>${escapeHtml(t.value)}</code>
       <span class="token-value" data-var="${escapeHtml(t.name)}"></span>
     </div>
   </div>`;
@@ -230,7 +246,8 @@ ${steps}
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
-function renderSpacing(block) {
+function renderSpacing(block, _options = {}, outputs = {}) {
+  const showUtilities = outputEnabled(outputs, "utilities");
   const scaleRows = block.tokens
     .map((t) => {
       const base = tokenBaseName(t.name);
@@ -245,10 +262,11 @@ function renderSpacing(block) {
     })
     .join("\n");
 
-  const usageRows = block.tokens
-    .map((t) => {
-      const base = tokenBaseName(t.name);
-      return `      <tr>
+  const usageRows = showUtilities
+    ? block.tokens
+      .map((t) => {
+        const base = tokenBaseName(t.name);
+        return `      <tr>
         <td><code>var(${escapeHtml(t.name)})</code></td>
         <td><code>.padding-block:${escapeHtml(base)}</code></td>
         <td><code>.padding-inline:${escapeHtml(base)}</code></td>
@@ -257,8 +275,29 @@ function renderSpacing(block) {
         <td><code>.gutter:${escapeHtml(base)}</code></td>
         <td><code>.region-space:${escapeHtml(base)}</code></td>
       </tr>`;
-    })
-    .join("\n");
+      })
+      .join("\n")
+    : "";
+
+  const usageTable = showUtilities
+    ? `<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Usage</h2>
+<table class="spacing-table">
+  <thead>
+    <tr>
+      <th>Custom Property</th>
+      <th>Padding Block</th>
+      <th>Padding Inline</th>
+      <th>Margin Block</th>
+      <th>Flow Space</th>
+      <th>Gutter</th>
+      <th>Region Space</th>
+    </tr>
+  </thead>
+  <tbody>
+${usageRows}
+  </tbody>
+</table>`
+    : "";
 
   return `<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Scale</h2>
 <table class="spacing-table">
@@ -275,23 +314,7 @@ ${scaleRows}
   </tbody>
 </table>
 
-<h2 style="font-family: monospace; margin-bottom: 0.5rem;">Usage</h2>
-<table class="spacing-table">
-  <thead>
-    <tr>
-      <th>Custom Property</th>
-      <th>Padding Block</th>
-      <th>Padding Inline</th>
-      <th>Margin Block</th>
-      <th>Flow Space</th>
-      <th>Gutter</th>
-      <th>Region Space</th>
-    </tr>
-  </thead>
-  <tbody>
-${usageRows}
-  </tbody>
-</table>
+${usageTable}
 
 <style>
   .spacing-table {
@@ -341,16 +364,19 @@ ${stacks}
 ${TOKEN_DISPLAY_SCRIPT}`;
 }
 
-function renderTextWeights(block) {
+function renderTextWeights(block, _options = {}, outputs = {}) {
+  const showUtilities = outputEnabled(outputs, "utilities");
   const weights = block.tokens
     .map((t) => {
       const base = tokenBaseName(t.name);
+      const utility = showUtilities
+        ? `      <code>.font-weight:${escapeHtml(base)}</code>\n`
+        : "";
       return `  <div class="weight-step">
     <div class="weight-sample" style="font-weight: var(${escapeHtml(t.name)})">The quick brown fox jumps over the lazy dog.</div>
     <div class="weight-meta">
       <code>var(${escapeHtml(t.name)})</code>
-      <code>.font-weight:${escapeHtml(base)}</code>
-      <span>${escapeHtml(t.value)}</span>
+${utility}      <span>${escapeHtml(t.value)}</span>
     </div>
   </div>`;
     })
@@ -387,17 +413,20 @@ ${weights}
 </style>`;
 }
 
-function renderTextLeading(block) {
+function renderTextLeading(block, _options = {}, outputs = {}) {
   const loremText = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.`;
+  const showUtilities = outputEnabled(outputs, "utilities");
 
   const leadings = block.tokens
     .map((t) => {
       const base = tokenBaseName(t.name);
+      const utility = showUtilities
+        ? `      <code>.line-height:${escapeHtml(base)}</code>\n`
+        : "";
       return `  <div style="line-height: var(${escapeHtml(t.name)})">
     <div class="meta">
       <code>var(${escapeHtml(t.name)})</code>
-      <code>.line-height:${escapeHtml(base)}</code>
-      <span class="token-value" data-var="${escapeHtml(t.name)}"></span>
+${utility}      <span class="token-value" data-var="${escapeHtml(t.name)}"></span>
     </div>
     <p>${loremText}</p>
   </div>`;
@@ -494,6 +523,223 @@ const TYPE_REGISTRY = {
   fonts: { doc: renderFonts, utilities: emitFontFamilyUtilities, defaultTitle: "Fonts" },
   viewports: { doc: renderViewports, utilities: null, defaultTitle: "Viewports" },
 };
+
+const TOKEN_BLOCK_ALIASES = {
+  textSizes: "text-sizes",
+  textWeights: "text-weights",
+  textLeading: "text-leading",
+};
+
+const TOKEN_BLOCK_DISPLAY_KEYS = [
+  "colors",
+  "spacing",
+  "textSizes",
+  "textWeights",
+  "textLeading",
+  "fonts",
+  "viewports",
+];
+
+function isPlainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function tokenBlockDisplayKey(key) {
+  const canonical = TOKEN_BLOCK_ALIASES[key] || key;
+  return Object.entries(TOKEN_BLOCK_ALIASES).find(([, value]) => value === canonical)?.[0] || canonical;
+}
+
+function suggestTokenBlockKey(key) {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return TOKEN_BLOCK_DISPLAY_KEYS.find(
+    (validKey) => validKey.toLowerCase().replace(/[^a-z0-9]/g, "") === normalized,
+  );
+}
+
+function normalizeLabels(value, pathForError) {
+  const labels = Array.isArray(value) ? value : [value];
+  if (!labels.every((label) => typeof label === "string")) {
+    throw new Error(`[SwatchKit] ${pathForError} must be a string or an array of strings.`);
+  }
+  return labels;
+}
+
+function validateOutputFilter(filter, pathForError) {
+  if (filter === undefined) return undefined;
+  if (!isPlainObject(filter)) {
+    throw new Error(`[SwatchKit] ${pathForError} must be an object.`);
+  }
+
+  const normalized = {};
+  for (const key of Object.keys(filter)) {
+    if (key !== "includeLabels" && key !== "excludeLabels") {
+      throw new Error(
+        `[SwatchKit] Unknown ${pathForError} key "${key}". Valid keys: includeLabels, excludeLabels.`,
+      );
+    }
+    normalized[key] = normalizeLabels(filter[key], `${pathForError}.${key}`);
+  }
+  return normalized;
+}
+
+function validateLabelConfig(labelConfig, pathForError, type) {
+  if (!isPlainObject(labelConfig)) {
+    throw new Error(`[SwatchKit] ${pathForError} must be an object.`);
+  }
+
+  const normalized = {};
+  for (const key of Object.keys(labelConfig)) {
+    if (key !== "docs" && key !== "utilities") {
+      throw new Error(
+        `[SwatchKit] Unknown ${pathForError} key "${key}". Valid keys: docs, utilities.`,
+      );
+    }
+    if (typeof labelConfig[key] !== "boolean") {
+      throw new Error(`[SwatchKit] ${pathForError}.${key} must be a boolean.`);
+    }
+    if (key === "utilities" && labelConfig[key] === true && !TYPE_REGISTRY[type].utilities) {
+      throw new Error(`[SwatchKit] ${type} does not generate utilities. Remove ${pathForError}.utilities.`);
+    }
+    normalized[key] = labelConfig[key];
+  }
+
+  return normalized;
+}
+
+function normalizeTokenBlocksConfig(tokenBlocks = {}) {
+  if (!isPlainObject(tokenBlocks)) {
+    throw new Error("[SwatchKit] tokenBlocks must be an object.");
+  }
+
+  const normalized = {};
+  const sourceKeysByCanonical = new Map();
+
+  for (const rawKey of Object.keys(tokenBlocks)) {
+    const type = TOKEN_BLOCK_ALIASES[rawKey] || rawKey;
+    if (!TYPE_REGISTRY[type]) {
+      const suggestion = suggestTokenBlockKey(rawKey);
+      if (suggestion) {
+        throw new Error(`[SwatchKit] Unknown tokenBlocks key "${rawKey}". Did you mean "${suggestion}"?`);
+      }
+      throw new Error(
+        `[SwatchKit] Unknown tokenBlocks key "${rawKey}". Valid keys: ${TOKEN_BLOCK_DISPLAY_KEYS.join(", ")}.`,
+      );
+    }
+
+    if (sourceKeysByCanonical.has(type)) {
+      throw new Error(
+        `[SwatchKit] tokenBlocks defines both "${sourceKeysByCanonical.get(type)}" and "${rawKey}". Use only one key.`,
+      );
+    }
+    sourceKeysByCanonical.set(type, rawKey);
+
+    const displayKey = tokenBlockDisplayKey(rawKey);
+    const typeConfig = tokenBlocks[rawKey];
+    if (!isPlainObject(typeConfig)) {
+      throw new Error(`[SwatchKit] tokenBlocks.${displayKey} must be an object.`);
+    }
+
+    const normalizedTypeConfig = {};
+    for (const key of Object.keys(typeConfig)) {
+      if (key !== "docs" && key !== "utilities" && key !== "labels") {
+        throw new Error(
+          `[SwatchKit] Unknown tokenBlocks.${displayKey} key "${key}". Valid keys: docs, utilities, labels.`,
+        );
+      }
+    }
+
+    normalizedTypeConfig.docs = validateOutputFilter(typeConfig.docs, `tokenBlocks.${displayKey}.docs`);
+
+    if (typeConfig.utilities !== undefined && !TYPE_REGISTRY[type].utilities) {
+      throw new Error(`[SwatchKit] ${type} does not generate utilities. Remove tokenBlocks.${displayKey}.utilities.`);
+    }
+    normalizedTypeConfig.utilities = validateOutputFilter(
+      typeConfig.utilities,
+      `tokenBlocks.${displayKey}.utilities`,
+    );
+
+    if (typeConfig.labels !== undefined) {
+      if (!isPlainObject(typeConfig.labels)) {
+        throw new Error(`[SwatchKit] tokenBlocks.${displayKey}.labels must be an object.`);
+      }
+      normalizedTypeConfig.labels = {};
+      for (const label of Object.keys(typeConfig.labels)) {
+        normalizedTypeConfig.labels[label] = validateLabelConfig(
+          typeConfig.labels[label],
+          `tokenBlocks.${displayKey}.labels.${label}`,
+          type,
+        );
+      }
+    }
+
+    normalized[type] = normalizedTypeConfig;
+  }
+
+  return normalized;
+}
+
+function validateTokenDocsConfig(tokenDocs = {}) {
+  if (!isPlainObject(tokenDocs)) {
+    throw new Error("[SwatchKit] tokenDocs must be an object.");
+  }
+
+  for (const [type, options] of Object.entries(tokenDocs)) {
+    if (type === "showSource") continue;
+    if (!isPlainObject(options)) continue;
+    for (const removedKey of ["enabled", "includeLabels", "excludeLabels"]) {
+      if (removedKey in options) {
+        if (removedKey === "enabled") {
+          throw new Error(
+            `[SwatchKit] tokenDocs.${type}.enabled was removed in v6. Use tokenBlocks.${type}.docs controls instead.`,
+          );
+        }
+        throw new Error(
+          `[SwatchKit] tokenDocs.${type}.${removedKey} was removed in v6. Use tokenBlocks.${type}.docs.${removedKey} instead.`,
+        );
+      }
+    }
+  }
+}
+
+function applyOutputFilters(outputs, outputName, label, filters = {}) {
+  if (!filters) return;
+
+  if (filters.includeLabels !== undefined) {
+    outputs[outputName] = filters.includeLabels.includes(label);
+  }
+
+  if (filters.excludeLabels !== undefined && filters.excludeLabels.includes(label)) {
+    outputs[outputName] = false;
+  }
+}
+
+function resolveBlockOutputs(block, tokenBlocksConfig = {}) {
+  const outputs = {
+    docs: true,
+    utilities: Boolean(TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities),
+  };
+
+  const typeConfig = tokenBlocksConfig[block.type];
+  if (!typeConfig) return outputs;
+
+  applyOutputFilters(outputs, "docs", block.label, typeConfig.docs);
+  applyOutputFilters(outputs, "utilities", block.label, typeConfig.utilities);
+
+  const labelConfig = typeConfig.labels && typeConfig.labels[block.label];
+  if (labelConfig) {
+    if (labelConfig.docs !== undefined) outputs.docs = labelConfig.docs;
+    if (labelConfig.utilities !== undefined) outputs.utilities = labelConfig.utilities;
+  }
+
+  return outputs;
+}
+
+function withResolvedOutputs(block, tokenBlocksConfig = {}) {
+  return {
+    ...block,
+    outputs: resolveBlockOutputs(block, tokenBlocksConfig),
+  };
+}
 
 // =============================================================================
 // Utility emitters (one per type). Each returns an array of CSS rule strings.
@@ -624,29 +870,10 @@ function tokenDocOptions(tokenDocs, type) {
   return (tokenDocs && tokenDocs[type]) || {};
 }
 
-function tokenDocBlockEnabled(block, tokenDocs = {}) {
-  const options = tokenDocOptions(tokenDocs, block.type);
-  if (options.enabled === false) return false;
-
-  if (Array.isArray(options.includeLabels)) {
-    return options.includeLabels.includes(block.label);
-  }
-
-  if (Array.isArray(options.excludeLabels)) {
-    return !options.excludeLabels.includes(block.label);
-  }
-
-  return true;
-}
-
-function filterTokenDocBlocks(blocks, tokenDocs = {}) {
-  return blocks.filter((block) => tokenDocBlockEnabled(block, tokenDocs));
-}
-
 function renderBlockDoc(block, tokenDocs = {}) {
   const entry = TYPE_REGISTRY[block.type];
   if (!entry) return null;
-  return entry.doc(block, tokenDocOptions(tokenDocs, block.type));
+  return entry.doc(block, tokenDocOptions(tokenDocs, block.type), block.outputs);
 }
 
 /**
@@ -811,7 +1038,10 @@ module.exports = {
   generateUtilitiesCss,
   generateTokenDocs,
   mergeTokenBlocksByTypeAndLabel,
-  filterTokenDocBlocks,
+  normalizeTokenBlocksConfig,
+  validateTokenDocsConfig,
+  resolveBlockOutputs,
+  withResolvedOutputs,
   renderBlockDoc,
   blockSlug,
   blockTitle,

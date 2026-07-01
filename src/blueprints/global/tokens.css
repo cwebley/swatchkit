@@ -2,9 +2,9 @@
  * SwatchKit Design Tokens
  *
  * This file is YOURS. It is the single source of truth for your design tokens.
- * SwatchKit reads the "@swatchkit <type> Label" comment blocks below to:
- *   1. document each group on the pattern library's token pages, and
- *   2. generate utility classes into css/utilities/utilities.css.
+ * SwatchKit reads the "@swatchkit <type> Label" comment blocks below to
+ * document token groups and generate utility classes. Use tokenBlocks config
+ * to disable docs or utilities for specific groups.
  *
  * Edit values directly — it's plain, hand-editable CSS. Fluid sizes use a
  * universally-supported clamp() pattern that you can tweak via the fluid
