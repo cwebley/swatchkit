@@ -948,9 +948,14 @@ function scaffoldApp(settings, options) {
     for (const [k, v] of Object.entries(appDevDeps)) {
       if (pkg.devDependencies[k] === undefined) pkg.devDependencies[k] = v;
     }
-    // swatchkit itself is a dev dependency of the host app.
+    // swatchkit itself is a dev dependency of the host app. Pin to the version
+    // of swatchkit that's running init so newly scaffolded projects always
+    // match the release they were generated against.
     if (pkg.devDependencies.swatchkit === undefined && pkg.dependencies?.swatchkit === undefined) {
-      pkg.devDependencies.swatchkit = "^5.0.0";
+      const swatchkitVersion = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "package.json"), "utf-8")
+      ).version;
+      pkg.devDependencies.swatchkit = `^${swatchkitVersion}`;
     }
 
     const after = JSON.stringify(pkg, null, 2) + "\n";

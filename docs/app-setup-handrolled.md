@@ -119,9 +119,12 @@ Everything in `global/`, `compositions/`, `utilities/` (under both `src/css/` an
     "http-server": "^14.1.1",
     "npm-run-all": "^4.1.5",
     "onchange": "^7.1.0",
-    "swatchkit": "^5.0.0"
+    "swatchkit": "^X.Y.Z"
   }
 }
+```
+
+The swatchkit version in `devDependencies` is whatever release of swatchkit you ran `init` against; bump it manually when you upgrade swatchkit.
 ```
 
 The build chain runs in this order, and the order is load-bearing:

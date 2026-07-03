@@ -1,5 +1,10 @@
 # SwatchKit To-Do
 
+## Modern CSS
+
+- fit-text grow for title
+- view transitions for going to full preview page. can the iframe expand to full page?! does this work for anchor links?
+
 ## Token Strategy — DONE in v5
 
 - ~~**Format Evaluation:** Are the JSON files useful for designers/Figma?~~
@@ -32,12 +37,14 @@ model in memory), instead of writing them into the source `swatchkit/tokens/`
 directory at all.**
 
 Benefits:
+
 - Generated output never pollutes the source tree (no marker hack needed, no
   stale files, nothing to `.gitignore`).
 - "Generated vs. authored" is unambiguous: source = yours, dist = ours.
 - Removes the write-into-source-then-scan-source coupling.
 
 Why it's deferred (it's a bigger change than the marker fix):
+
 - The scanner currently treats `swatchkit/tokens/*.html` like normal source
   swatches; section + sidebar generation is driven by the scanned `sections`
   structure.
@@ -45,7 +52,7 @@ Why it's deferred (it's a bigger change than the marker fix):
 - To move generation into `dist`, token docs would need to be inserted into the
   `sections` map directly (a synthetic "Design Tokens" section) rather than
   discovered by scanning — touching the scan/section/preview pipeline.
-- Need to decide how a user could still *hand-author* token pages under
+- Need to decide how a user could still _hand-author_ token pages under
   `swatchkit/tokens/` if they want to (probably: still scan that dir for
   authored files, just stop writing generated ones into it).
 
