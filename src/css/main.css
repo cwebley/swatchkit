@@ -1,0 +1,36 @@
+/**
+ * SwatchKit Main Stylesheet
+ *
+ * This is your app's CSS entry point. It imports design tokens, reset,
+ * global styles, compositions, utilities, and component swatches.
+ * Edit freely — this file is yours.
+ *
+ * Note: swatchkit init --force will overwrite blueprint files (with .bak backups).
+ * The only auto-generated file is css/utilities/utilities.css — do not edit it
+ * manually. Your design tokens live in css/global/tokens.css and are yours.
+ */
+
+/* Declare the cascade layer order. Last layer wins, so utilities always beat
+   blocks, which always beat compositions, and so on. The order of @import
+   below no longer determines who wins — this declaration does. */
+@layer reset, tokens, base, compositions, blocks, utilities;
+
+/* Import global styles (reset, tokens, variables, elements) */
+@import "global/index.css";
+
+/* Import layout compositions */
+@import "compositions/index.css";
+
+/* Import swatches (component styles) */
+@import "swatches/index.css";
+
+/* Import utilities (must come last in the import chain too, so the
+   auto-generated utilities.css ends up in the utilities layer) */
+@import "utilities/index.css";
+
+/* === Your App Styles === */
+
+/* Add your component styles below. Anything you write here is UNLAYERED,
+   which means it will beat all of the layers above — use this as the
+   "I really mean it" escape hatch. To play by the same cascade rules,
+   wrap your rules in @layer app { ... } instead. */

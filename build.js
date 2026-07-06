@@ -330,6 +330,13 @@ function resolveSettings(cliOptions, fileConfig) {
     ? path.resolve(cwd, fileConfig.cssDir)
     : path.join(cwd, "css");
 
+  // JS directory - where custom client-side scripts (e.g. swatchkit-nav.js)
+  // live. Mirrors cssDir: copy jsDir into outDir/js/ when jsCopy is true.
+  // Default: js/ at project root
+  const jsDir = fileConfig.jsDir
+    ? path.resolve(cwd, fileConfig.jsDir)
+    : path.join(cwd, "js");
+
   // Token sources (v5): CSS files that may contain @swatchkit token blocks.
   // Default: the scaffolded global/tokens.css, plus the conventional
   // tokens.css / tokens/*.css locations inside cssDir. Users add theme files
@@ -357,6 +364,16 @@ function resolveSettings(cliOptions, fileConfig) {
   const cssPath =
     fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
 
+  // JS copy behavior — mirrors cssCopy. When true (default), copies jsDir
+  // into outDir/js/. When false, expects JS to already exist at jsPath
+  // relative to output.
+  const jsCopy = fileConfig.jsCopy !== undefined ? fileConfig.jsCopy : true;
+
+  // Relative path from SwatchKit HTML output to the user's JS directory.
+  // Only used when jsCopy is false. Derived from jsDir basename by default.
+  const jsPath =
+    fileConfig.jsPath || (jsCopy ? "js/" : `../${path.basename(jsDir)}/`);
+
   // Render callbacks - merge user config with defaults
   const renderSidebarSection =
     fileConfig.renderSidebarSection || defaultRenderers.renderSidebarSection;
@@ -372,10 +389,13 @@ function resolveSettings(cliOptions, fileConfig) {
     swatchkitDir,
     outDir,
     cssDir,
+    jsDir,
     tokenSources,
     exclude,
     cssCopy,
     cssPath,
+    jsCopy,
+    jsPath,
     tokenDocs,
     tokenBlocks,
     order,
@@ -389,6 +409,7 @@ function resolveSettings(cliOptions, fileConfig) {
 
     // Derived paths
     distCssDir: path.join(outDir, "css"),
+    distJsDir: path.join(outDir, "js"),
     distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
     utilitiesDir: path.join(cssDir, "utilities"),
@@ -475,6 +496,12 @@ function buildInitManifest(settings) {
     dest: path.join(settings.cssDir, "swatchkit-preview.css"),
   });
 
+  // SwatchKit navigation script (view transitions for main <-> preview)
+  manifest.push({
+    src: path.join(blueprintsDir, "js", "swatchkit-nav.js"),
+    dest: path.join(settings.jsDir, "swatchkit-nav.js"),
+  });
+
   // CSS folder blueprints (global, compositions, utilities)
   const cssFolders = ["global", "compositions", "utilities"];
   for (const folder of cssFolders) {
@@ -518,6 +545,7 @@ function getInitDirs(settings) {
     path.join(settings.cssDir, "global"),
     path.join(settings.cssDir, "utilities"),
     path.join(settings.cssDir, "swatches"),
+    settings.jsDir,
   ];
 }
 
@@ -587,8 +615,8 @@ function reportInitStatus(settings) {
 
 // --- 5. Config Generation ---
 function generateConfig(cssDir, app = false) {
-  // App mode: integrated config (a build tool owns the CSS, so SwatchKit
-  // references the shared stylesheet rather than copying it). The app starter
+  // App mode: integrated config (a build tool owns the CSS + JS, so SwatchKit
+  // references the shared bundles rather than copying them). The app starter
   // always sets "type": "module" in package.json, so the config is ESM.
   if (app) {
     const appBody = `{
@@ -599,6 +627,12 @@ function generateConfig(cssDir, app = false) {
   // app and the pattern library point at dist/css/main.css.
   cssCopy: false,
   cssPath: "../css/",
+
+  // Same pattern for JS: esbuild bundles src/js/ into dist/js/, and both the
+  // app and the pattern library reference the same shared bundle.
+  jsDir: "${cssDir.replace(/css$/, "js")}",
+  jsCopy: false,
+  jsPath: "../js/",
 }`;
     return `// swatchkit.config.js\nexport default ${appBody};\n`;
   }
@@ -611,6 +645,15 @@ function generateConfig(cssDir, app = false) {
   // Set to false if a build tool (Vite, Astro, Eleventy, etc.) is already
   // handling your CSS and you don't need SwatchKit to copy it.
   cssCopy: true,
+
+  // Where your custom client-side JS lives. SwatchKit copies jsDir into
+  // dist/swatchkit/js/ and references files via jsPath in the generated
+  // HTML. Mirrors cssDir.
+  jsDir: "${cssDir.replace(/css$/, "js")}",
+
+  // Mirror of cssCopy for JS. Set to false if your build tool is already
+  // bundling JS and you don't need SwatchKit to copy it.
+  jsCopy: true,
 
   // CSS files scanned for @swatchkit token blocks (supports a trailing * glob).
   // Default: ["<cssDir>/global/tokens.css", "<cssDir>/tokens.css", "<cssDir>/tokens/*.css"].
@@ -1228,6 +1271,16 @@ async function build(settings) {
     );
   }
 
+  // 3b. Copy JS files (recursively) — skip if jsCopy is disabled
+  if (settings.jsCopy && fs.existsSync(settings.jsDir)) {
+    console.log("Copying static JS assets (js/*)...");
+    copyDir(settings.jsDir, settings.distJsDir, true);
+  } else if (!settings.jsCopy) {
+    console.log(
+      `Skipping JS copy (jsCopy: false). JS referenced at: ${settings.jsPath}`,
+    );
+  }
+
   // 4. Read swatches
   console.log("Scanning HTML patterns (swatchkit/**/*.html)...");
   const sections = {}; // Map<SectionName, Array<Swatch>>
@@ -1430,13 +1483,15 @@ async function build(settings) {
         // Each swatch is output as a directory with index.html inside.
         // preview/{category}/{slug}/index.html  — depth: 3 levels from outDir
         // preview/{slug}/index.html            — depth: 2 levels from outDir
-        let swatchDir, cssPath;
+        let swatchDir, cssPath, jsPath;
         if (p.sectionSlug) {
           swatchDir = path.join(settings.distPreviewDir, p.sectionSlug, p.slug);
           cssPath = "../../../" + settings.cssPath; // preview/section/slug/index.html -> ../../../ + cssPath
+          jsPath = "../../../" + settings.jsPath;
         } else {
           swatchDir = path.join(settings.distPreviewDir, p.slug);
           cssPath = "../../" + settings.cssPath; // preview/slug/index.html -> ../../ + cssPath
+          jsPath = "../../" + settings.jsPath;
         }
 
         if (!fs.existsSync(swatchDir))
@@ -1446,7 +1501,10 @@ async function build(settings) {
         const previewHtml = previewLayoutContent
           .replace("<!-- PREVIEW_TITLE -->", p.name)
           .replace("<!-- PREVIEW_CONTENT -->", p.content)
+          .replaceAll("__CSS_PATH__", cssPath)
+          .replaceAll("__JS_PATH__", jsPath)
           .replaceAll("<!-- CSS_PATH -->", cssPath)
+          .replaceAll("<!-- JS_PATH -->", jsPath)
           .replace("<!-- HEAD_EXTRAS -->", "");
 
         fs.writeFileSync(previewFile, previewHtml);
@@ -1474,7 +1532,12 @@ async function build(settings) {
   const finalHtml = layoutContent
     .replace("<!-- SIDEBAR_LINKS -->", sidebarLinks)
     .replace("<!-- SWATCHES -->", swatchBlocks)
+    .replaceAll("__CSS_PATH__", settings.cssPath)
+    .replaceAll("__JS_PATH__", settings.jsPath)
+    // Backward compat: legacy layouts used HTML-comment placeholders, which
+    // also get entity-encoded inside attribute values when viewed in a browser.
     .replaceAll("<!-- CSS_PATH -->", settings.cssPath)
+    .replaceAll("<!-- JS_PATH -->", settings.jsPath)
     .replace("<!-- HEAD_EXTRAS -->", headExtras);
 
   // 9. Write output

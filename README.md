@@ -223,6 +223,34 @@ dist/
 
 `cssPath` is the path from swatchkit's HTML to the CSS. The default (when omitted) is `../<basename of cssDir>/` — so `cssDir: "./src/css"` defaults to `"../css/"`. For most integrated projects, that's all you need. Set it explicitly only if your build puts CSS somewhere other than `dist/css/`.
 
+## Two ways to ship JS
+
+JS follows the same pattern as CSS. `swatchkit-nav.js` is the default navigation script that powers the View Transitions API morph between the main UI and swatch preview pages (see `src/js/swatchkit-nav.js`).
+
+### Self-contained (`jsCopy: true`)
+
+SwatchKit copies `jsDir` into `dist/swatchkit/js/`. The pattern library is fully self-contained.
+
+```js
+// swatchkit.config.js
+export default { jsDir: "./src/js", jsCopy: true };
+```
+
+### Integrated (`jsCopy: false`)
+
+SwatchKit skips the copy and writes `<script>` tags pointing at `jsPath` instead. You put the JS in `dist/js/` once and the library references it.
+
+```js
+// swatchkit.config.js
+export default {
+  jsDir: "./src/js",
+  jsCopy: false,
+  jsPath: "../js/",
+};
+```
+
+`jsPath` is the path from swatchkit's HTML to the JS. The default (when omitted) is `../<basename of jsDir>/` — so `jsDir: "./src/js"` defaults to `"../js/"`. Set it explicitly only if your build puts JS somewhere other than `dist/js/`.
+
 For an integrated app, your `package.json` typically chains both steps. The canonical setup uses esbuild for the CSS+JS bundling step — see the [hand-rolled app setup guide](./docs/app-setup-handrolled.md) for the full reference:
 
 ```json
@@ -273,6 +301,17 @@ export default {
   // Path from swatchkit's HTML to the CSS. Only used when cssCopy is false.
   // Default: "../<basename of cssDir>/"
   cssPath: "../css/",
+
+  // JS source directory. `swatchkit init` defaults this to "./src/js".
+  jsDir: "./src/js",
+
+  // Copy jsDir into outDir/js. Set false to reference JS via jsPath
+  // instead. See "Two ways to ship JS" above.
+  jsCopy: true,
+
+  // Path from swatchkit's HTML to the JS. Only used when jsCopy is false.
+  // Default: "../<basename of jsDir>/"
+  jsPath: "../js/",
 
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
@@ -359,7 +398,7 @@ swatchkit [command] [options]
 `swatchkit` (the build command) does four things:
 
 1. **Parses `@swatchkit` token blocks** from the CSS files in `tokenSources` (your hand-written tokens — the source of truth). It resolves `tokenBlocks` output controls, regenerates `css/utilities/utilities.css`, and writes enabled token-documentation HTML under `swatchkit/tokens/`. Your token CSS is never modified — only generated outputs are written. See [docs/tokens.md](./docs/tokens.md).
-2. **Copies CSS** from `cssDir` to `outDir/css` (only when `cssCopy: true`).
+2. **Copies CSS** from `cssDir` to `outDir/css` (only when `cssCopy: true`), and JS from `jsDir` to `outDir/js` (only when `jsCopy: true`).
 3. **Scans `swatchkit/`** for swatches, renders each one. Static `index.html` swatches go through unchanged. Dynamic `index.js` swatches are imported and executed for their HTML. Sibling assets are copied alongside.
 4. **Writes** `outDir/index.html` (the library) and one `outDir/preview/{section}/{id}/index.html` per swatch (full-screen previews).
 
@@ -376,6 +415,7 @@ In watch mode, SwatchKit compares generated content against existing files and *
 | `src/css/utilities/utilities.css` | swatchkit | Generated every build from your token blocks. Do not edit. |
 | `src/css/swatchkit-ui.css` | you | Docs UI styling. Safe to customize. |
 | `src/css/swatchkit-preview.css` | you | Preview page styling. Safe to customize. |
+| `src/js/swatchkit-nav.js` | you | Navigation script (View Transitions for main ↔ preview). Safe to customize. |
 | `swatchkit/_swatchkit.html` | you | Layout template. `init --force` overwrites it. |
 | `swatchkit/_preview.html` | you | Preview template. Same caveat. |
 | `swatchkit/tokens/*.html` | swatchkit | Regenerated every build. |

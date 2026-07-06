@@ -85,6 +85,36 @@ function read(p) {
   read(path.join(dir, "src/css/utilities/utilities.css")).includes(".color\\:color-primary")
     ? ok("utilities.css generated with color utility")
     : fail("utilities.css generated with color utility");
+  // JS asset pipeline
+  exists(path.join(dir, "src/js/swatchkit-nav.js")) ? ok("src/js/swatchkit-nav.js scaffolded") : fail("src/js/swatchkit-nav.js scaffolded");
+  exists(path.join(dir, "dist/swatchkit/js/swatchkit-nav.js")) ? ok("dist/swatchkit/js/swatchkit-nav.js copied") : fail("dist/swatchkit/js/swatchkit-nav.js copied");
+  const mainHtml = read(path.join(dir, "dist/swatchkit/index.html"));
+  mainHtml.includes('<script src="js/swatchkit-nav.js" defer></script>')
+    ? ok('main UI has <script src="js/swatchkit-nav.js" defer></script>')
+    : fail('main UI has <script src="js/swatchkit-nav.js" defer></script>');
+  mainHtml.includes("<!-- HEAD_EXTRAS -->")
+    ? fail("HEAD_EXTRAS placeholder stripped from main UI")
+    : ok("HEAD_EXTRAS placeholder stripped from main UI");
+  // Preview pages live at depth 3 (preview/{section}/{slug}/index.html), so the
+  // relative JS path is ../../../js/swatchkit-nav.js. Find any preview file.
+  const previewDir = path.join(dir, "dist/swatchkit/preview");
+  function findPreviewFile(d) {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, entry.name);
+      if (entry.isDirectory()) {
+        const found = findPreviewFile(p);
+        if (found) return found;
+      } else if (entry.name === "index.html") {
+        return p;
+      }
+    }
+    return null;
+  }
+  const previewFile = findPreviewFile(previewDir);
+  const previewHtml = previewFile ? read(previewFile) : "";
+  previewHtml.includes('<script src="../../../js/swatchkit-nav.js" defer></script>')
+    ? ok('preview page has depth-aware <script src="../../../js/swatchkit-nav.js">')
+    : fail('preview page has depth-aware <script src="../../../js/swatchkit-nav.js">', previewHtml.match(/<script[^>]*>/)?.[0]);
 }
 
 // 2. CJS project, swatchkit init + build

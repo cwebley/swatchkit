@@ -1,0 +1,11 @@
+/* === Hello Swatch ===
+ *
+ * Styles for the hello swatch (swatchkit/swatches/hello/).
+ * Replace or delete this file once you have real components to document.
+ */
+
+.hello-swatch {
+  font-family: var(--font-base, sans-serif);
+  font-size: var(--size-step-0, 1rem);
+  color: var(--color-primary, currentColor);
+}

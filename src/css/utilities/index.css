@@ -1,0 +1,14 @@
+/* === CSS Utilities === */
+
+/* Single-purpose helper classes */
+
+@layer utilities {
+
+/* Auto-generated utility classes from your @swatchkit token blocks.
+   Do not edit utilities.css directly — it is regenerated on every build. */
+@import "utilities.css";
+
+@import "visually-hidden.css";
+@import "region.css";
+
+} /* end @layer utilities */
