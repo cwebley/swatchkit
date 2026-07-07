@@ -937,7 +937,7 @@ function scaffoldApp(settings, options) {
       "watch:assets":
         "onchange 'src/css/**/*' 'src/js/**/*' 'src/components/**/*' -e 'src/css/utilities/utilities.css' -- npm run build:assets",
       "swatchkit:watch": "swatchkit --watch",
-      serve: "http-server dist -c-1 -p 8080 -o",
+      serve: "http-server dist -c-1 -p 0 -o",
       dev: "npm run build && npm-run-all --parallel watch:site watch:assets swatchkit:watch serve",
     };
     pkg.scripts = pkg.scripts || {};
@@ -987,9 +987,9 @@ Done! Integrated app starter scaffolded. Next:
   2. Start the dev loop (build, watch, serve):
        npm run dev
 
-     The app is at http://localhost:8080/ and the pattern library at
-     http://localhost:8080/swatchkit/. Edit src/components/button.js or
-     src/components/card.js and both update.
+     http-server picks an open port and prints the URL it bound to
+     (the app at the root, pattern library at /swatchkit/). Edit
+     src/components/button.js or src/components/card.js and both update.
 
   3. Production build (minified, no source maps):
        npm run build:prod
