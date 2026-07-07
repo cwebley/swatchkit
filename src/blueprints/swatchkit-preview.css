@@ -8,8 +8,21 @@
   of the swatch, rather than blending into a plain white page.
 */
 
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(preview) {
+  display: none;
+}
+
+::view-transition-new(preview) {
+  animation: none;
+}
+
 body {
   min-height: 100vh;
+  view-transition-name: preview;
   background-image:
     repeating-linear-gradient(
       to left,

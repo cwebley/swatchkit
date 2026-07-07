@@ -18,6 +18,7 @@ my-project/
 ├── swatchkit/
 │   ├── _swatchkit.html
 │   ├── _preview.html
+│   ├── swatchkit.js                  # optional SwatchKit client enhancements
 │   └── swatches/
 │       └── button/
 │           ├── index.js              # calls renderButton → swatch HTML
@@ -46,6 +47,11 @@ npx swatchkit
 ```
 
 `swatchkit init` prompts for `cssDir` (default `./src/css`) when `--cssDir` is omitted, writes `swatchkit.config.js`, and scaffolds the project in one step. If you run `swatchkit` with no config file, the build falls back to `./css`. The build output goes to `dist/swatchkit/` by default.
+
+SwatchKit also scaffolds a small, user-editable `swatchkit/swatchkit.js` client
+script. It currently powers progressive View Transitions between the main UI and
+full-screen preview pages. Existing projects can follow the
+[View Transitions upgrade guide](./docs/view-transitions-upgrade.md).
 
 ### Full app in one command
 

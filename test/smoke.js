@@ -727,6 +727,76 @@ function read(p) {
   }
 }
 
+// 19. SwatchKit client script and view-transition assets.
+{
+  console.log("\n[19] SwatchKit client script and View Transition assets");
+  const dir = freshDir("19-view-transitions");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  const rootSwatch = path.join(dir, "swatchkit", "root-preview.html");
+  fs.writeFileSync(rootSwatch, "<button>Root preview</button>\n");
+  runSwatchkit("build", dir, []);
+
+  exists(path.join(dir, "swatchkit/swatchkit.js"))
+    ? ok("swatchkit/swatchkit.js scaffolded")
+    : fail("swatchkit/swatchkit.js scaffolded");
+  exists(path.join(dir, "dist/swatchkit/js/swatchkit.js"))
+    ? ok("dist/swatchkit/js/swatchkit.js copied")
+    : fail("dist/swatchkit/js/swatchkit.js copied");
+
+  const index = read(path.join(dir, "dist/swatchkit/index.html"));
+  index.includes('<script src="js/swatchkit.js"></script>')
+    ? ok("main index references swatchkit.js")
+    : fail("main index references swatchkit.js");
+
+  const rootPreview = read(path.join(dir, "dist/swatchkit/preview/root-preview/index.html"));
+  rootPreview.includes('<script src="../../js/swatchkit.js"></script>')
+    ? ok("root preview references swatchkit.js at correct depth")
+    : fail("root preview references swatchkit.js at correct depth");
+
+  const sectionPreview = read(path.join(dir, "dist/swatchkit/preview/swatches/hello/index.html"));
+  sectionPreview.includes('<script src="../../../js/swatchkit.js"></script>')
+    ? ok("section preview references swatchkit.js at correct depth")
+    : fail("section preview references swatchkit.js at correct depth");
+
+  const uiCss = read(path.join(dir, "dist/swatchkit/css/swatchkit-ui.css"));
+  uiCss.includes("@view-transition") && uiCss.includes("::view-transition-new(preview)")
+    ? ok("SwatchKit UI CSS includes View Transition rules")
+    : fail("SwatchKit UI CSS includes View Transition rules");
+
+  const previewCss = read(path.join(dir, "dist/swatchkit/css/swatchkit-preview.css"));
+  previewCss.includes("view-transition-name: preview")
+    ? ok("SwatchKit preview CSS tags preview body")
+    : fail("SwatchKit preview CSS tags preview body");
+}
+
+// 20. Integrated app mode still emits the SwatchKit client script internally.
+{
+  console.log("\n[20] init --app emits SwatchKit client script");
+  const dir = freshDir("20-app-view-transitions");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init --app", dir, ["init", "--app", "--cssDir", "./src/css"]);
+  runSwatchkit("build:swatchkit", dir, []);
+
+  exists(path.join(dir, "swatchkit/swatchkit.js"))
+    ? ok("app mode scaffolds swatchkit/swatchkit.js")
+    : fail("app mode scaffolds swatchkit/swatchkit.js");
+  exists(path.join(dir, "dist/swatchkit/js/swatchkit.js"))
+    ? ok("app mode copies dist/swatchkit/js/swatchkit.js")
+    : fail("app mode copies dist/swatchkit/js/swatchkit.js");
+
+  const index = read(path.join(dir, "dist/swatchkit/index.html"));
+  index.includes('<script src="js/swatchkit.js"></script>')
+    ? ok("app mode main index references swatchkit.js")
+    : fail("app mode main index references swatchkit.js");
+
+  const sectionPreview = read(path.join(dir, "dist/swatchkit/preview/swatches/button/index.html"));
+  sectionPreview.includes('<script src="../../../js/swatchkit.js"></script>')
+    ? ok("app mode preview references swatchkit.js at correct depth")
+    : fail("app mode preview references swatchkit.js at correct depth");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

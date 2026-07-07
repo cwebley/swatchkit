@@ -1,5 +1,17 @@
 /* SwatchKit UI Styles */
 
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(preview) {
+  display: none;
+}
+
+::view-transition-new(preview) {
+  animation: none;
+}
+
 :root {
   --sidebar-target-width: 25rem;
   --sidebar-content-min-width: 66%;

@@ -386,9 +386,11 @@ function resolveSettings(cliOptions, fileConfig) {
     // Project specific layout overrides
     projectLayout: path.join(swatchkitDir, "_swatchkit.html"),
     projectPreviewLayout: path.join(swatchkitDir, "_preview.html"),
+    projectClientScript: path.join(swatchkitDir, "swatchkit.js"),
 
     // Derived paths
     distCssDir: path.join(outDir, "css"),
+    distJsDir: path.join(outDir, "js"),
     distPreviewDir: path.join(outDir, "preview"),
     outputFile: path.join(outDir, "index.html"),
     utilitiesDir: path.join(cssDir, "utilities"),
@@ -473,6 +475,12 @@ function buildInitManifest(settings) {
   manifest.push({
     src: path.join(blueprintsDir, "swatchkit-preview.css"),
     dest: path.join(settings.cssDir, "swatchkit-preview.css"),
+  });
+
+  // SwatchKit client script (loaded by the main UI and preview pages)
+  manifest.push({
+    src: path.join(blueprintsDir, "swatchkit.js"),
+    dest: settings.projectClientScript,
   });
 
   // CSS folder blueprints (global, compositions, utilities)
@@ -1051,6 +1059,11 @@ function copySwatchAssets(srcDir, destDir) {
   }
 }
 
+function renderSwatchkitScript(srcPrefix, enabled) {
+  if (!enabled) return "";
+  return `<script src="${srcPrefix}js/swatchkit.js"></script>`;
+}
+
 async function scanSwatches(dir, destDir, exclude = []) {
   const swatches = [];
   if (!fs.existsSync(dir)) return swatches;
@@ -1225,6 +1238,18 @@ async function build(settings) {
   } else if (!settings.cssCopy) {
     console.log(
       `Skipping CSS copy (cssCopy: false). CSS referenced at: ${settings.cssPath}`,
+    );
+  }
+
+  const hasClientScript = fs.existsSync(settings.projectClientScript);
+  if (hasClientScript) {
+    console.log("Copying SwatchKit client script (swatchkit.js)...");
+    if (!fs.existsSync(settings.distJsDir)) {
+      fs.mkdirSync(settings.distJsDir, { recursive: true });
+    }
+    fs.copyFileSync(
+      settings.projectClientScript,
+      path.join(settings.distJsDir, "swatchkit.js"),
     );
   }
 
@@ -1430,13 +1455,15 @@ async function build(settings) {
         // Each swatch is output as a directory with index.html inside.
         // preview/{category}/{slug}/index.html  — depth: 3 levels from outDir
         // preview/{slug}/index.html            — depth: 2 levels from outDir
-        let swatchDir, cssPath;
+        let swatchDir, cssPath, jsPath;
         if (p.sectionSlug) {
           swatchDir = path.join(settings.distPreviewDir, p.sectionSlug, p.slug);
           cssPath = "../../../" + settings.cssPath; // preview/section/slug/index.html -> ../../../ + cssPath
+          jsPath = "../../../";
         } else {
           swatchDir = path.join(settings.distPreviewDir, p.slug);
           cssPath = "../../" + settings.cssPath; // preview/slug/index.html -> ../../ + cssPath
+          jsPath = "../../";
         }
 
         if (!fs.existsSync(swatchDir))
@@ -1447,6 +1474,10 @@ async function build(settings) {
           .replace("<!-- PREVIEW_TITLE -->", p.name)
           .replace("<!-- PREVIEW_CONTENT -->", p.content)
           .replaceAll("<!-- CSS_PATH -->", cssPath)
+          .replace(
+            "<!-- SWATCHKIT_SCRIPT -->",
+            renderSwatchkitScript(jsPath, hasClientScript),
+          )
           .replace("<!-- HEAD_EXTRAS -->", "");
 
         fs.writeFileSync(previewFile, previewHtml);
@@ -1475,6 +1506,10 @@ async function build(settings) {
     .replace("<!-- SIDEBAR_LINKS -->", sidebarLinks)
     .replace("<!-- SWATCHES -->", swatchBlocks)
     .replaceAll("<!-- CSS_PATH -->", settings.cssPath)
+    .replace(
+      "<!-- SWATCHKIT_SCRIPT -->",
+      renderSwatchkitScript("", hasClientScript),
+    )
     .replace("<!-- HEAD_EXTRAS -->", headExtras);
 
   // 9. Write output
