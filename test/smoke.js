@@ -797,6 +797,159 @@ function read(p) {
     : fail("app mode preview references swatchkit.js at correct depth");
 }
 
+// 21. Standalone init outputs SwatchKit at the hosted root.
+{
+  console.log("\n[21] init --standalone outputs SwatchKit at dist root");
+  const dir = freshDir("21-standalone-root-output");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init --standalone", dir, ["init", "--standalone", "--cssDir", "./src/css"]);
+
+  const cfg = read(path.join(dir, "swatchkit.config.js"));
+  cfg.includes('outDir: "./dist"') && cfg.includes("allowRootOutDir: true") && cfg.includes("cssCopy: true")
+    ? ok("standalone config writes root dist output and copies CSS")
+    : fail("standalone config writes root dist output and copies CSS");
+
+  const pkg = JSON.parse(read(path.join(dir, "package.json")));
+  pkg.type === "module"
+    ? ok("standalone package.json is ESM for JS swatches")
+    : fail("standalone package.json is ESM for JS swatches");
+  pkg.scripts?.build === "swatchkit" &&
+    pkg.scripts?.watch === "swatchkit --watch" &&
+    pkg.scripts?.serve === "http-server dist -c-1 -o /" &&
+    pkg.scripts?.dev === "npm run build && npm-run-all --parallel watch serve"
+    ? ok("standalone package.json has build/watch/serve/dev scripts")
+    : fail("standalone package.json has build/watch/serve/dev scripts");
+  pkg.devDependencies?.["http-server"] && pkg.devDependencies?.["npm-run-all"] && pkg.devDependencies?.swatchkit
+    ? ok("standalone package.json has dev dependencies")
+    : fail("standalone package.json has dev dependencies");
+
+  exists(path.join(dir, "src/components/button.js")) &&
+    exists(path.join(dir, "src/components/card.js")) &&
+    exists(path.join(dir, "swatchkit/swatches/button/index.js")) &&
+    exists(path.join(dir, "swatchkit/swatches/card/index.js"))
+    ? ok("standalone scaffolds render-function component examples")
+    : fail("standalone scaffolds render-function component examples");
+  read(path.join(dir, "src/css/swatches/index.css")).includes('@import "button.css";') &&
+    read(path.join(dir, "src/css/swatches/index.css")).includes('@import "card.css";')
+    ? ok("standalone registers button/card CSS")
+    : fail("standalone registers button/card CSS");
+
+  runSwatchkit("build", dir, []);
+
+  exists(path.join(dir, "dist/index.html"))
+    ? ok("standalone dist/index.html generated")
+    : fail("standalone dist/index.html generated");
+  exists(path.join(dir, "dist/preview/swatches/hello/index.html"))
+    ? ok("standalone preview generated under dist/preview")
+    : fail("standalone preview generated under dist/preview");
+  exists(path.join(dir, "dist/preview/swatches/button/index.html")) &&
+    exists(path.join(dir, "dist/preview/swatches/card/index.html"))
+    ? ok("standalone button/card previews generated")
+    : fail("standalone button/card previews generated");
+  exists(path.join(dir, "dist/css/main.css"))
+    ? ok("standalone CSS copied into dist/css")
+    : fail("standalone CSS copied into dist/css");
+  exists(path.join(dir, "dist/js/swatchkit.js"))
+    ? ok("standalone swatchkit.js copied into dist/js")
+    : fail("standalone swatchkit.js copied into dist/js");
+  !exists(path.join(dir, "dist/swatchkit/index.html"))
+    ? ok("standalone does not generate nested dist/swatchkit app")
+    : fail("standalone does not generate nested dist/swatchkit app");
+
+  const index = read(path.join(dir, "dist/index.html"));
+  index.includes('href="css/main.css"') &&
+    index.includes('src="js/swatchkit.js"') &&
+    index.includes('src="preview/swatches/hello/"')
+    ? ok("standalone index uses root-relative local asset and preview links")
+    : fail("standalone index uses root-relative local asset and preview links");
+
+  const preview = read(path.join(dir, "dist/preview/swatches/hello/index.html"));
+  preview.includes('href="../../../css/main.css"') &&
+    preview.includes('src="../../../js/swatchkit.js"')
+    ? ok("standalone preview uses correct depth-aware asset links")
+    : fail("standalone preview uses correct depth-aware asset links");
+
+  read(path.join(dir, "dist/preview/swatches/button/index.html")).includes("Primary") &&
+    read(path.join(dir, "dist/preview/swatches/card/index.html")).includes("Project Aurora")
+    ? ok("standalone JS render-function examples render to preview HTML")
+    : fail("standalone JS render-function examples render to preview HTML");
+}
+
+// 22. Shallow outDir requires explicit allowRootOutDir safety opt-in.
+{
+  console.log("\n[22] shallow outDir validation");
+  const dir = freshDir("22-shallow-outdir-validation");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  outDir: "./dist",
+  cssDir: "./src/css",
+  cssCopy: true,
+};
+`,
+  );
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+    fail("outDir ./dist without allowRootOutDir errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("allowRootOutDir: true")
+      ? ok("outDir ./dist without allowRootOutDir errors")
+      : fail("outDir ./dist without allowRootOutDir errors", (e.stderr || e.stdout || e.message).toString());
+  }
+
+  fs.writeFileSync(
+    path.join(dir, "swatchkit.config.js"),
+    `export default {
+  outDir: ".",
+  cssDir: "./src/css",
+  cssCopy: true,
+  allowRootOutDir: true,
+};
+`,
+  );
+  try {
+    execSync(`node "${SWATCHKIT}"`, { cwd: dir, stdio: "pipe" });
+    fail("outDir project root errors even with allowRootOutDir");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("not the project root")
+      ? ok("outDir project root errors even with allowRootOutDir")
+      : fail("outDir project root errors even with allowRootOutDir", (e.stderr || e.stdout || e.message).toString());
+  }
+}
+
+// 23. --app and --standalone are intentionally separate starters.
+{
+  console.log("\n[23] init --app --standalone fails clearly");
+  const dir = freshDir("23-app-standalone-conflict");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  try {
+    execSync(`node "${SWATCHKIT}" "init" "--app" "--standalone" "--cssDir" "./src/css"`, {
+      cwd: dir,
+      stdio: "pipe",
+    });
+    fail("init --app --standalone errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("separate starters")
+      ? ok("init --app --standalone errors")
+      : fail("init --app --standalone errors", (e.stderr || e.stdout || e.message).toString());
+  }
+
+  try {
+    execSync(`node "${SWATCHKIT}" "--standalone"`, {
+      cwd: dir,
+      stdio: "pipe",
+    });
+    fail("--standalone without init errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("--standalone is only supported with init")
+      ? ok("--standalone without init errors")
+      : fail("--standalone without init errors", (e.stderr || e.stdout || e.message).toString());
+  }
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 

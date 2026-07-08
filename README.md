@@ -53,6 +53,35 @@ script. It currently powers progressive View Transitions between the main UI and
 full-screen preview pages. Existing projects can follow the
 [View Transitions upgrade guide](./docs/view-transitions-upgrade.md).
 
+### Standalone hosted SwatchKit
+
+If SwatchKit is the whole hosted site, use `--standalone` instead of `--app`:
+
+```bash
+npx swatchkit init --standalone --cssDir ./src/css
+npm install
+npm run dev
+```
+
+This writes a root-hosted, self-contained pattern library:
+
+```text
+dist/index.html
+dist/preview/...
+dist/css/...
+dist/js/swatchkit.js
+```
+
+The generated config includes `outDir: "./dist"`, `cssCopy: true`, and
+`allowRootOutDir: true`. SwatchKit still refuses to clean the project root or
+parent directories; the opt-in only allows shallow child output directories like
+`./dist`, `./build`, or `./public`.
+
+The standalone starter also creates `package.json` scripts (`build`, `watch`,
+`serve`, `dev`) and example render functions at `src/components/button.js` and
+`src/components/card.js`, wired into `swatchkit/swatches/button/` and
+`swatchkit/swatches/card/` so you can see the build-time JS swatch pattern.
+
 ### Full app in one command
 
 To scaffold a complete integrated app — esbuild build scripts, shared
@@ -262,6 +291,10 @@ export default {
   // Output directory (default: "./dist/swatchkit")
   outDir: "./dist/patterns",
 
+  // Required only when outDir is a shallow child directory like "./dist".
+  // SwatchKit still refuses to clean the project root or parent directories.
+  allowRootOutDir: false,
+
   // CSS source directory.
   // `swatchkit init` defaults this to "./src/css".
   // No-config builds fall back to "./css".
@@ -343,6 +376,7 @@ swatchkit [command] [options]
 | :--- | :--- |
 | `swatchkit init` | Create `swatchkit.config.js` **and** scaffold CSS blueprints, layout templates, and a starter `tokens.css`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. Status report if already initialized. |
 | `swatchkit init --app` | Also scaffold an integrated esbuild app starter (build scripts, shared renderers, home page, two example swatches, watch-enabled `package.json`). |
+| `swatchkit init --standalone` | Scaffold SwatchKit as the whole hosted site (`dist/index.html`, `dist/preview/*`, copied CSS/JS assets). |
 | `swatchkit init --force` | Overwrite all managed files (with `.bak` backups). |
 | `swatchkit init --dry-run` | Show what would change, write nothing. |
 | `swatchkit` (default) | Build the pattern library. |

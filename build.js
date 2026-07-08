@@ -30,6 +30,7 @@ function parseArgs(args) {
     force: false,
     dryRun: false,
     app: false,
+    standalone: false,
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -38,6 +39,8 @@ function parseArgs(args) {
       options.command = "init";
     } else if (arg === "--app") {
       options.app = true;
+    } else if (arg === "--standalone") {
+      options.standalone = true;
     } else if (arg === "-w" || arg === "--watch") {
       options.watch = true;
     } else if (arg === "-h" || arg === "--help") {
@@ -376,6 +379,7 @@ function resolveSettings(cliOptions, fileConfig) {
     exclude,
     cssCopy,
     cssPath,
+    allowRootOutDir: fileConfig.allowRootOutDir === true,
     tokenDocs,
     tokenBlocks,
     order,
@@ -594,7 +598,7 @@ function reportInitStatus(settings) {
 }
 
 // --- 5. Config Generation ---
-function generateConfig(cssDir, app = false) {
+function generateConfig(cssDir, app = false, standalone = false) {
   // App mode: integrated config (a build tool owns the CSS, so SwatchKit
   // references the shared stylesheet rather than copying it). The app starter
   // always sets "type": "module" in package.json, so the config is ESM.
@@ -609,6 +613,28 @@ function generateConfig(cssDir, app = false) {
   cssPath: "../css/",
 }`;
     return `// swatchkit.config.js\nexport default ${appBody};\n`;
+  }
+
+  if (standalone) {
+    const standaloneBody = `{
+  // Standalone mode: SwatchKit is the whole hosted site.
+  // This writes dist/index.html, dist/preview/*, dist/css/*, and dist/js/*.
+  outDir: "./dist",
+  allowRootOutDir: true,
+
+  cssDir: "${cssDir}",
+  cssCopy: true,
+}`;
+
+    if (projectUsesEsm()) {
+      return `// swatchkit.config.js
+export default ${standaloneBody};
+`;
+    }
+
+    return `// swatchkit.config.js
+module.exports = ${standaloneBody};
+`;
   }
 
   const body = `{
@@ -706,9 +732,17 @@ function ensureConfig(cliOptions) {
         `  ~ Backed up: swatchkit.config.js → ${path.basename(backupPath)}`,
       );
     }
-    fs.writeFileSync(configPath, generateConfig(cssDir, cliOptions.app));
+    fs.writeFileSync(
+      configPath,
+      generateConfig(cssDir, cliOptions.app, cliOptions.standalone),
+    );
+    const mode = cliOptions.app
+      ? ", integrated app"
+      : cliOptions.standalone
+        ? ", standalone"
+        : "";
     console.log(
-      `+ Created: swatchkit.config.js (cssDir: ${cssDir}${cliOptions.app ? ", integrated app" : ""})`,
+      `+ Created: swatchkit.config.js (cssDir: ${cssDir}${mode})`,
     );
     return cssDir;
   };
@@ -815,13 +849,17 @@ function scaffold(settings, options) {
     console.warn(`[SwatchKit] Could not generate utilities: ${e.message}`);
   }
 
-  // In --app mode, scaffoldApp prints the next-steps message instead.
-  if (options.app) return;
+  // App/standalone starters print their own next-steps messages.
+  if (options.app || options.standalone) return;
 
   const tokensCssRel = path.relative(
     cwd,
     path.join(settings.cssDir, "global", "tokens.css"),
   );
+  const outputIndexRel = options.standalone
+    ? "dist/index.html"
+    : "dist/swatchkit/index.html";
+
   console.log(`
 Done! Here's what to do next:
 
@@ -831,7 +869,7 @@ Done! Here's what to do next:
 
   2. Run "swatchkit" to build the pattern library
 
-  3. Open dist/swatchkit/index.html to view it
+  3. Open ${outputIndexRel} to view it
 `);
 }
 
@@ -996,13 +1034,145 @@ Done! Integrated app starter scaffolded. Next:
 `);
 }
 
+// --- 6.6 Standalone Starter Scaffold (swatchkit init --standalone) ---
+// Adds reusable render-function examples and a small package.json dev loop for
+// SwatchKit-as-the-site projects. No app page or bundler is scaffolded.
+function scaffoldStandalone(settings, options) {
+  const cwd = process.cwd();
+  const appTemplates = path.join(__dirname, "src/templates/app");
+
+  console.log("\n[SwatchKit] Scaffolding standalone starter...");
+
+  const fileMap = [
+    ["src/components/button.js", "src/components/button.js"],
+    ["src/components/card.js", "src/components/card.js"],
+    ["css/button.css", path.join(settings.cssDir, "swatches", "button.css")],
+    ["css/card.css", path.join(settings.cssDir, "swatches", "card.css")],
+    ["swatches/button/index.js", "swatchkit/swatches/button/index.js"],
+    ["swatches/button/description.html", "swatchkit/swatches/button/description.html"],
+    ["swatches/card/index.js", "swatchkit/swatches/card/index.js"],
+    ["swatches/card/description.html", "swatchkit/swatches/card/description.html"],
+  ];
+
+  for (const [rel, destRel] of fileMap) {
+    const src = path.join(appTemplates, rel);
+    const dest = path.isAbsolute(destRel) ? destRel : path.join(cwd, destRel);
+    const exists = fs.existsSync(dest);
+    if (exists && !options.force) {
+      console.log(`  = Skipped (exists): ${path.relative(cwd, dest)}`);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (exists && options.force) {
+      const backupPath = getBackupPath(dest);
+      fs.copyFileSync(dest, backupPath);
+      console.log(`  ~ Backed up: ${path.relative(cwd, dest)} → ${path.basename(backupPath)}`);
+    }
+    fs.copyFileSync(src, dest);
+    console.log(`  ${exists ? "~ Updated" : "+ Created"}: ${path.relative(cwd, dest)}`);
+  }
+
+  const swatchIndex = path.join(settings.cssDir, "swatches", "index.css");
+  if (fs.existsSync(swatchIndex)) {
+    let css = fs.readFileSync(swatchIndex, "utf-8");
+    let changed = false;
+    for (const imp of ['@import "button.css";', '@import "card.css";']) {
+      if (!css.includes(imp)) {
+        css = css.trimEnd() + "\n" + imp + "\n";
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(swatchIndex, css);
+      console.log(`  ~ Updated: ${path.relative(cwd, swatchIndex)} (registered button.css, card.css)`);
+    }
+  }
+
+  const pkgPath = path.join(cwd, "package.json");
+  const pkgExisted = fs.existsSync(pkgPath);
+  let pkg = {};
+  if (pkgExisted) {
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    } catch {
+      console.warn("  ! Could not parse existing package.json — leaving it untouched.");
+      pkg = null;
+    }
+  }
+
+  if (pkg) {
+    const before = pkgExisted ? fs.readFileSync(pkgPath, "utf-8") : null;
+    pkg.name = pkg.name || path.basename(cwd);
+    pkg.version = pkg.version || "1.0.0";
+    pkg.private = pkg.private !== undefined ? pkg.private : true;
+    pkg.type = "module";
+
+    const standaloneScripts = {
+      build: "swatchkit",
+      watch: "swatchkit --watch",
+      serve: "http-server dist -c-1 -o /",
+      dev: "npm run build && npm-run-all --parallel watch serve",
+    };
+    pkg.scripts = pkg.scripts || {};
+    for (const [key, value] of Object.entries(standaloneScripts)) {
+      if (pkg.scripts[key] === undefined || options.force) pkg.scripts[key] = value;
+    }
+
+    const standaloneDevDeps = {
+      "http-server": "^14.1.1",
+      "npm-run-all": "^4.1.5",
+    };
+    pkg.devDependencies = pkg.devDependencies || {};
+    for (const [key, value] of Object.entries(standaloneDevDeps)) {
+      if (pkg.devDependencies[key] === undefined) pkg.devDependencies[key] = value;
+    }
+    if (pkg.devDependencies.swatchkit === undefined && pkg.dependencies?.swatchkit === undefined) {
+      const swatchkitVersion = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "package.json"), "utf-8"),
+      ).version;
+      pkg.devDependencies.swatchkit = `^${swatchkitVersion}`;
+    }
+
+    const after = JSON.stringify(pkg, null, 2) + "\n";
+    if (!pkgExisted) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  + Created: package.json (scripts + devDependencies)");
+    } else if (after !== before) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  ~ Updated: package.json (scripts + devDependencies)");
+    } else {
+      console.log("  = package.json already up to date");
+    }
+  }
+
+  console.log(`
+Done! Standalone SwatchKit starter scaffolded. Next:
+
+  1. Install dependencies:
+       npm install
+
+  2. Start the dev loop (build, watch, serve):
+       npm run dev
+
+     http-server picks an open port and prints the URL it bound to.
+     Edit src/components/button.js or src/components/card.js and rebuild.
+`);
+}
+
 // Entry point for the `init` command: ensure config, then scaffold.
 async function runInit(cliOptions) {
+  if (cliOptions.app && cliOptions.standalone) {
+    console.error(
+      '[SwatchKit] init --app and init --standalone are separate starters. Use --app when SwatchKit sits beside a real app, or --standalone when SwatchKit is the hosted app.',
+    );
+    process.exit(1);
+  }
+
   // The --app starter is ESM (config + build scripts use export/import). Make
   // package.json "type": "module" BEFORE writing/loading the ESM config, so the
   // config doesn't get loaded as CommonJS and fail with "Unexpected token
   // 'export'". (Plain `init` keeps matching the existing package.json#type.)
-  if (cliOptions.app) {
+  if (cliOptions.app || cliOptions.standalone) {
     ensureEsmPackageJson();
   }
 
@@ -1017,6 +1187,8 @@ async function runInit(cliOptions) {
 
   if (cliOptions.app) {
     scaffoldApp(settings, cliOptions);
+  } else if (cliOptions.standalone) {
+    scaffoldStandalone(settings, cliOptions);
   }
 }
 
@@ -1142,19 +1314,26 @@ async function scanSwatches(dir, destDir, exclude = []) {
   return swatches;
 }
 
-function validateOutDir(outDir) {
+function validateOutDir(outDir, { allowRootOutDir = false } = {}) {
   const cwd = process.cwd();
   const relative = path.relative(cwd, outDir);
+  const relativeParts = relative.split(path.sep).filter(Boolean);
 
   if (
     !relative || // outDir === cwd
     relative === ".." || // above cwd
-    relative.startsWith("../") || // above cwd
-    path.isAbsolute(relative) || // different drive/root
-    relative.split(path.sep).length < 2 // top-level dir like "dist" with no subfolder
+    relative.startsWith(`..${path.sep}`) || // above cwd
+    path.isAbsolute(relative) // different drive/root
   ) {
     console.error(
-      `[SwatchKit] Refusing to clean outDir "${outDir}" — must be a subdirectory at least 2 levels deep (e.g., dist/swatchkit).`,
+      `[SwatchKit] Refusing to clean outDir "${outDir}" — must be inside this project, not the project root or a parent directory.`,
+    );
+    process.exit(1);
+  }
+
+  if (relativeParts.length < 2 && !allowRootOutDir) {
+    console.error(
+      `[SwatchKit] Refusing to clean outDir "${outDir}" — shallow output directories like "${relative}" require allowRootOutDir: true.`,
     );
     process.exit(1);
   }
@@ -1175,7 +1354,9 @@ async function build(settings) {
   }
 
   // 2. Clean previous output (only our subdirectory, never the parent)
-  validateOutDir(settings.outDir);
+  validateOutDir(settings.outDir, {
+    allowRootOutDir: settings.allowRootOutDir,
+  });
   if (fs.existsSync(settings.outDir)) {
     fs.rmSync(settings.outDir, { recursive: true });
   }
@@ -1616,10 +1797,15 @@ Commands:
   init --app   Also scaffold an integrated app starter: esbuild build
                scripts, shared renderers, a home page, two example
                swatches, and watch-enabled package.json scripts
+  init --standalone
+               Scaffold SwatchKit as the whole hosted site, outputting to
+               dist/index.html with copied CSS assets
   (default)    Build the pattern library
 
 Options:
       --app       With "init": scaffold the integrated esbuild app starter
+      --standalone
+                  With "init": scaffold root-hosted standalone SwatchKit
   -w, --watch     Watch files and rebuild on change
   -c, --config    Path to config file
   -i, --input     Pattern directory (default: swatchkit/)
@@ -1645,6 +1831,13 @@ Options:
     if (cliOptions.command === "version") {
       printVersion();
       process.exit(0);
+    }
+
+    if (cliOptions.standalone && cliOptions.command !== "init") {
+      console.error(
+        '[SwatchKit] --standalone is only supported with init. Run: swatchkit init --standalone --cssDir ./src/css',
+      );
+      process.exit(1);
     }
 
     if (cliOptions.command === "init") {
