@@ -122,7 +122,8 @@ const COLOR_COLUMNS = {
   },
   backgroundUtility: {
     label: "BG Utility Class",
-    cell: (_t, base) => `<td><code>.background-color:${escapeHtml(base)}</code></td>`,
+    cell: (_t, base) =>
+      `<td><code>.background-color:${escapeHtml(base)}</code></td>`,
   },
 };
 
@@ -137,7 +138,8 @@ function colorColumns(options = {}, outputs = {}) {
   if (!Array.isArray(options.columns)) return defaultColumns;
 
   const columns = options.columns.filter(
-    (key) => COLOR_COLUMNS[key] && (allowUtilities || !COLOR_UTILITY_COLUMNS.has(key)),
+    (key) =>
+      COLOR_COLUMNS[key] && (allowUtilities || !COLOR_UTILITY_COLUMNS.has(key)),
   );
   return columns.length > 0 ? columns : defaultColumns;
 }
@@ -146,7 +148,10 @@ function renderColors(block, options = {}, outputs = {}) {
   const columns = colorColumns(options, outputs);
   const labels = options.columnLabels || {};
   const headers = columns
-    .map((key) => `      <th>${escapeHtml(labels[key] || COLOR_COLUMNS[key].label)}</th>`)
+    .map(
+      (key) =>
+        `      <th>${escapeHtml(labels[key] || COLOR_COLUMNS[key].label)}</th>`,
+    )
     .join("\n");
 
   const rows = block.tokens
@@ -187,7 +192,6 @@ ${rows}
   }
   .color-table th {
     font-weight: bold;
-    background: #f5f5f5;
   }
   .color-table code {
     font-family: monospace;
@@ -264,9 +268,9 @@ function renderSpacing(block, _options = {}, outputs = {}) {
 
   const usageRows = showUtilities
     ? block.tokens
-      .map((t) => {
-        const base = tokenBaseName(t.name);
-        return `      <tr>
+        .map((t) => {
+          const base = tokenBaseName(t.name);
+          return `      <tr>
         <td><code>var(${escapeHtml(t.name)})</code></td>
         <td><code>.padding-block:${escapeHtml(base)}</code></td>
         <td><code>.padding-inline:${escapeHtml(base)}</code></td>
@@ -275,8 +279,8 @@ function renderSpacing(block, _options = {}, outputs = {}) {
         <td><code>.gutter:${escapeHtml(base)}</code></td>
         <td><code>.region-space:${escapeHtml(base)}</code></td>
       </tr>`;
-      })
-      .join("\n")
+        })
+        .join("\n")
     : "";
 
   const usageTable = showUtilities
@@ -332,7 +336,6 @@ ${usageTable}
   }
   .spacing-table th {
     font-weight: bold;
-    background: #f5f5f5;
   }
   .spacing-table code {
     font-family: monospace;
@@ -515,13 +518,41 @@ ${items}
 
 // type -> { doc: renderer, utilities: emitter | null, defaultTitle }
 const TYPE_REGISTRY = {
-  colors: { doc: renderColors, utilities: emitColorUtilities, defaultTitle: "Colors" },
-  spacing: { doc: renderSpacing, utilities: emitSpacingUtilities, defaultTitle: "Spacing" },
-  "text-sizes": { doc: renderTextSizes, utilities: emitFontSizeUtilities, defaultTitle: "Text Sizes" },
-  "text-weights": { doc: renderTextWeights, utilities: emitFontWeightUtilities, defaultTitle: "Text Weights" },
-  "text-leading": { doc: renderTextLeading, utilities: emitLineHeightUtilities, defaultTitle: "Text Leading" },
-  fonts: { doc: renderFonts, utilities: emitFontFamilyUtilities, defaultTitle: "Fonts" },
-  viewports: { doc: renderViewports, utilities: null, defaultTitle: "Viewports" },
+  colors: {
+    doc: renderColors,
+    utilities: emitColorUtilities,
+    defaultTitle: "Colors",
+  },
+  spacing: {
+    doc: renderSpacing,
+    utilities: emitSpacingUtilities,
+    defaultTitle: "Spacing",
+  },
+  "text-sizes": {
+    doc: renderTextSizes,
+    utilities: emitFontSizeUtilities,
+    defaultTitle: "Text Sizes",
+  },
+  "text-weights": {
+    doc: renderTextWeights,
+    utilities: emitFontWeightUtilities,
+    defaultTitle: "Text Weights",
+  },
+  "text-leading": {
+    doc: renderTextLeading,
+    utilities: emitLineHeightUtilities,
+    defaultTitle: "Text Leading",
+  },
+  fonts: {
+    doc: renderFonts,
+    utilities: emitFontFamilyUtilities,
+    defaultTitle: "Fonts",
+  },
+  viewports: {
+    doc: renderViewports,
+    utilities: null,
+    defaultTitle: "Viewports",
+  },
 };
 
 const TOKEN_BLOCK_ALIASES = {
@@ -546,20 +577,27 @@ function isPlainObject(value) {
 
 function tokenBlockDisplayKey(key) {
   const canonical = TOKEN_BLOCK_ALIASES[key] || key;
-  return Object.entries(TOKEN_BLOCK_ALIASES).find(([, value]) => value === canonical)?.[0] || canonical;
+  return (
+    Object.entries(TOKEN_BLOCK_ALIASES).find(
+      ([, value]) => value === canonical,
+    )?.[0] || canonical
+  );
 }
 
 function suggestTokenBlockKey(key) {
   const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
   return TOKEN_BLOCK_DISPLAY_KEYS.find(
-    (validKey) => validKey.toLowerCase().replace(/[^a-z0-9]/g, "") === normalized,
+    (validKey) =>
+      validKey.toLowerCase().replace(/[^a-z0-9]/g, "") === normalized,
   );
 }
 
 function normalizeLabels(value, pathForError) {
   const labels = Array.isArray(value) ? value : [value];
   if (!labels.every((label) => typeof label === "string")) {
-    throw new Error(`[SwatchKit] ${pathForError} must be a string or an array of strings.`);
+    throw new Error(
+      `[SwatchKit] ${pathForError} must be a string or an array of strings.`,
+    );
   }
   return labels;
 }
@@ -597,8 +635,14 @@ function validateLabelConfig(labelConfig, pathForError, type) {
     if (typeof labelConfig[key] !== "boolean") {
       throw new Error(`[SwatchKit] ${pathForError}.${key} must be a boolean.`);
     }
-    if (key === "utilities" && labelConfig[key] === true && !TYPE_REGISTRY[type].utilities) {
-      throw new Error(`[SwatchKit] ${type} does not generate utilities. Remove ${pathForError}.utilities.`);
+    if (
+      key === "utilities" &&
+      labelConfig[key] === true &&
+      !TYPE_REGISTRY[type].utilities
+    ) {
+      throw new Error(
+        `[SwatchKit] ${type} does not generate utilities. Remove ${pathForError}.utilities.`,
+      );
     }
     normalized[key] = labelConfig[key];
   }
@@ -619,7 +663,9 @@ function normalizeTokenBlocksConfig(tokenBlocks = {}) {
     if (!TYPE_REGISTRY[type]) {
       const suggestion = suggestTokenBlockKey(rawKey);
       if (suggestion) {
-        throw new Error(`[SwatchKit] Unknown tokenBlocks key "${rawKey}". Did you mean "${suggestion}"?`);
+        throw new Error(
+          `[SwatchKit] Unknown tokenBlocks key "${rawKey}". Did you mean "${suggestion}"?`,
+        );
       }
       throw new Error(
         `[SwatchKit] Unknown tokenBlocks key "${rawKey}". Valid keys: ${TOKEN_BLOCK_DISPLAY_KEYS.join(", ")}.`,
@@ -636,7 +682,9 @@ function normalizeTokenBlocksConfig(tokenBlocks = {}) {
     const displayKey = tokenBlockDisplayKey(rawKey);
     const typeConfig = tokenBlocks[rawKey];
     if (!isPlainObject(typeConfig)) {
-      throw new Error(`[SwatchKit] tokenBlocks.${displayKey} must be an object.`);
+      throw new Error(
+        `[SwatchKit] tokenBlocks.${displayKey} must be an object.`,
+      );
     }
 
     const normalizedTypeConfig = {};
@@ -648,10 +696,15 @@ function normalizeTokenBlocksConfig(tokenBlocks = {}) {
       }
     }
 
-    normalizedTypeConfig.docs = validateOutputFilter(typeConfig.docs, `tokenBlocks.${displayKey}.docs`);
+    normalizedTypeConfig.docs = validateOutputFilter(
+      typeConfig.docs,
+      `tokenBlocks.${displayKey}.docs`,
+    );
 
     if (typeConfig.utilities !== undefined && !TYPE_REGISTRY[type].utilities) {
-      throw new Error(`[SwatchKit] ${type} does not generate utilities. Remove tokenBlocks.${displayKey}.utilities.`);
+      throw new Error(
+        `[SwatchKit] ${type} does not generate utilities. Remove tokenBlocks.${displayKey}.utilities.`,
+      );
     }
     normalizedTypeConfig.utilities = validateOutputFilter(
       typeConfig.utilities,
@@ -660,7 +713,9 @@ function normalizeTokenBlocksConfig(tokenBlocks = {}) {
 
     if (typeConfig.labels !== undefined) {
       if (!isPlainObject(typeConfig.labels)) {
-        throw new Error(`[SwatchKit] tokenBlocks.${displayKey}.labels must be an object.`);
+        throw new Error(
+          `[SwatchKit] tokenBlocks.${displayKey}.labels must be an object.`,
+        );
       }
       normalizedTypeConfig.labels = {};
       for (const label of Object.keys(typeConfig.labels)) {
@@ -708,7 +763,10 @@ function applyOutputFilters(outputs, outputName, label, filters = {}) {
     outputs[outputName] = filters.includeLabels.includes(label);
   }
 
-  if (filters.excludeLabels !== undefined && filters.excludeLabels.includes(label)) {
+  if (
+    filters.excludeLabels !== undefined &&
+    filters.excludeLabels.includes(label)
+  ) {
     outputs[outputName] = false;
   }
 }
@@ -716,7 +774,9 @@ function applyOutputFilters(outputs, outputName, label, filters = {}) {
 function resolveBlockOutputs(block, tokenBlocksConfig = {}) {
   const outputs = {
     docs: true,
-    utilities: Boolean(TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities),
+    utilities: Boolean(
+      TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities,
+    ),
   };
 
   const typeConfig = tokenBlocksConfig[block.type];
@@ -728,7 +788,8 @@ function resolveBlockOutputs(block, tokenBlocksConfig = {}) {
   const labelConfig = typeConfig.labels && typeConfig.labels[block.label];
   if (labelConfig) {
     if (labelConfig.docs !== undefined) outputs.docs = labelConfig.docs;
-    if (labelConfig.utilities !== undefined) outputs.utilities = labelConfig.utilities;
+    if (labelConfig.utilities !== undefined)
+      outputs.utilities = labelConfig.utilities;
   }
 
   return outputs;
@@ -823,7 +884,8 @@ function generateUtilitiesCss(blocks) {
   const ordered = [];
 
   for (const block of blocks) {
-    const emitter = TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities;
+    const emitter =
+      TYPE_REGISTRY[block.type] && TYPE_REGISTRY[block.type].utilities;
     if (!emitter) continue; // e.g. viewports
     for (const token of block.tokens) {
       for (const rule of emitter(token)) {
@@ -837,7 +899,8 @@ function generateUtilitiesCss(blocks) {
 
   let css = "/* AUTO-GENERATED by SwatchKit — do not edit manually. */\n";
   css += "/* Utility classes derived from your @swatchkit token blocks. */\n";
-  css += "/* Imported into the `utilities` cascade layer by main.css (declared\n";
+  css +=
+    "/* Imported into the `utilities` cascade layer by main.css (declared\n";
   css += "   last), so these win without !important. */\n\n";
   css += ordered.join("\n") + "\n";
   return css;
@@ -873,7 +936,11 @@ function tokenDocOptions(tokenDocs, type) {
 function renderBlockDoc(block, tokenDocs = {}) {
   const entry = TYPE_REGISTRY[block.type];
   if (!entry) return null;
-  return entry.doc(block, tokenDocOptions(tokenDocs, block.type), block.outputs);
+  return entry.doc(
+    block,
+    tokenDocOptions(tokenDocs, block.type),
+    block.outputs,
+  );
 }
 
 /**
