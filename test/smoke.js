@@ -316,6 +316,11 @@ function read(p) {
   exists(path.join(dir, "dist/swatchkit/preview/swatches/card/index.html"))
     ? ok("card swatch builds")
     : fail("card swatch builds");
+  const appIndex = read(path.join(dir, "dist/swatchkit/index.html"));
+  appIndex.includes('src="preview/swatches/button/"') &&
+  !appIndex.includes('src="preview/swatches/button/index.html"')
+    ? ok("standard app keeps directory-style preview links")
+    : fail("standard app keeps directory-style preview links");
 }
 
 // 12. Cascade layers: main.css declares layer order; utilities have no !important
@@ -947,6 +952,115 @@ function read(p) {
     (e.stderr || e.stdout || e.message).toString().includes("--standalone is only supported with init")
       ? ok("--standalone without init errors")
       : fail("--standalone without init errors", (e.stderr || e.stdout || e.message).toString());
+  }
+}
+
+// 24. init --app --astro adds the separate public pattern-library starter
+// without scaffolding the esbuild app or replacing standard Astro scripts.
+{
+  console.log("\n[24] init --app --astro scaffolds an Astro integration");
+  const dir = freshDir("24-init-app-astro");
+  fs.writeFileSync(
+    path.join(dir, "package.json"),
+    JSON.stringify(
+      {
+        name: "astro-smoke",
+        version: "1.0.0",
+        scripts: { dev: "astro dev", build: "astro build" },
+        devDependencies: { astro: "^5.0.0" },
+      },
+      null,
+      2,
+    ),
+  );
+
+  runSwatchkit("init --app --astro", dir, [
+    "init",
+    "--app",
+    "--astro",
+    "--cssDir",
+    "./src/styles",
+  ]);
+
+  const astroFiles = [
+    "swatchkit.config.mjs",
+    "src/styles/main.css",
+    "src/styles/global/tokens.css",
+    "src/components/button.js",
+    "src/components/card.js",
+    "src/styles/swatches/button.css",
+    "src/styles/swatches/card.css",
+    "swatchkit/swatches/button/index.js",
+    "swatchkit/swatches/card/index.js",
+  ];
+  let allAstroFiles = true;
+  for (const f of astroFiles) {
+    if (!exists(path.join(dir, f))) {
+      allAstroFiles = false;
+      fail(`Astro scaffold file: ${f}`);
+    }
+  }
+  if (allAstroFiles) ok("Astro scaffold files created");
+
+  const astroConfig = read(path.join(dir, "swatchkit.config.mjs"));
+  astroConfig.includes('outDir: "./public/swatchkit"') &&
+  astroConfig.includes('cssDir: "./src/styles"') &&
+  astroConfig.includes("cssCopy: true") &&
+  astroConfig.includes("explicitHtmlLinks: true")
+    ? ok("Astro config uses public output, copied CSS, and explicit HTML links")
+    : fail("Astro config uses public output, copied CSS, and explicit HTML links");
+
+  const astroPkg = JSON.parse(read(path.join(dir, "package.json")) || "{}");
+  astroPkg.type === "module" ? ok("Astro package.json type:module") : fail("Astro package.json type:module");
+  astroPkg.scripts["build:swatchkit"] === "swatchkit" &&
+  astroPkg.scripts["swatchkit:watch"] === "swatchkit --watch" &&
+  astroPkg.scripts["build"] === "npm run build:swatchkit && npm run build:astro" &&
+  astroPkg.scripts["dev"] === "npm-run-all --parallel dev:astro swatchkit:watch"
+    ? ok("Astro build and dev scripts are chained")
+    : fail("Astro build and dev scripts are chained");
+  astroPkg.scripts["build:astro"] === "astro build" &&
+  astroPkg.scripts["dev:astro"] === "astro dev" &&
+  astroPkg.devDependencies["npm-run-all"]
+    ? ok("Astro wrapper scripts and npm-run-all are present")
+    : fail("Astro wrapper scripts and npm-run-all are present");
+
+  exists(path.join(dir, "scripts/build-assets.js"))
+    ? fail("Astro scaffold does not create esbuild scripts")
+    : ok("Astro scaffold does not create esbuild scripts");
+  exists(path.join(dir, "src/pages/home.js"))
+    ? fail("Astro scaffold does not create a competing app page")
+    : ok("Astro scaffold does not create a competing app page");
+
+  runSwatchkit("Astro SwatchKit build", dir, []);
+  exists(path.join(dir, "public/swatchkit/index.html"))
+    ? ok("Astro library is generated under public/swatchkit")
+    : fail("Astro library is generated under public/swatchkit");
+  exists(path.join(dir, "public/swatchkit/css/main.css"))
+    ? ok("Astro library has stable copied CSS")
+    : fail("Astro library has stable copied CSS");
+  const astroIndex = read(path.join(dir, "public/swatchkit/index.html"));
+  astroIndex.includes('src="preview/tokens/colors/index.html"') &&
+  astroIndex.includes('href="preview/tokens/colors/index.html"') &&
+  !astroIndex.includes('src="preview/tokens/colors/"')
+    ? ok("Astro library uses explicit index.html preview links")
+    : fail("Astro library uses explicit index.html preview links");
+  exists(path.join(dir, "public/swatchkit/preview/swatches/button/index.html"))
+    ? ok("Astro button swatch builds")
+    : fail("Astro button swatch builds");
+}
+
+// 25. --astro requires the app starter.
+{
+  console.log("\n[25] init --astro requires --app");
+  const dir = freshDir("25-astro-without-app");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  try {
+    execSync(`node "${SWATCHKIT}" init --astro`, { cwd: dir, stdio: "pipe" });
+    fail("init --astro without --app errors");
+  } catch (e) {
+    (e.stderr || e.stdout || e.message).toString().includes("--app --astro")
+      ? ok("init --astro without --app errors")
+      : fail("init --astro without --app errors", (e.stderr || e.stdout || e.message).toString());
   }
 }
 

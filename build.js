@@ -30,6 +30,7 @@ function parseArgs(args) {
     force: false,
     dryRun: false,
     app: false,
+    astro: false,
     standalone: false,
   };
 
@@ -39,6 +40,8 @@ function parseArgs(args) {
       options.command = "init";
     } else if (arg === "--app") {
       options.app = true;
+    } else if (arg === "--astro") {
+      options.astro = true;
     } else if (arg === "--standalone") {
       options.standalone = true;
     } else if (arg === "-w" || arg === "--watch") {
@@ -360,6 +363,11 @@ function resolveSettings(cliOptions, fileConfig) {
   const cssPath =
     fileConfig.cssPath || (cssCopy ? "css/" : `../${path.basename(cssDir)}/`);
 
+  // Some static servers, including Astro's public-directory dev server, do not
+  // resolve a directory URL to its index.html file. Keep traditional directory
+  // URLs by default, with an opt-in for those environments.
+  const explicitHtmlLinks = fileConfig.explicitHtmlLinks === true;
+
   // Render callbacks - merge user config with defaults
   const renderSidebarSection =
     fileConfig.renderSidebarSection || defaultRenderers.renderSidebarSection;
@@ -379,6 +387,7 @@ function resolveSettings(cliOptions, fileConfig) {
     exclude,
     cssCopy,
     cssPath,
+    explicitHtmlLinks,
     allowRootOutDir: fileConfig.allowRootOutDir === true,
     tokenDocs,
     tokenBlocks,
@@ -598,7 +607,21 @@ function reportInitStatus(settings) {
 }
 
 // --- 5. Config Generation ---
-function generateConfig(cssDir, app = false, standalone = false) {
+function generateConfig(cssDir, app = false, standalone = false, astro = false) {
+  // Astro owns the application build. Keep the generated library under public
+  // so Astro serves it in dev and copies it into the final build unchanged.
+  // The source CSS is copied into the library to avoid relying on Astro's
+  // hashed CSS output paths.
+  if (astro) {
+  const astroBody = `{
+  outDir: "./public/swatchkit",
+  cssDir: "${cssDir}",
+  cssCopy: true,
+  explicitHtmlLinks: true,
+}`;
+    return `// swatchkit.config.mjs\nexport default ${astroBody};\n`;
+  }
+
   // App mode: integrated config (a build tool owns the CSS, so SwatchKit
   // references the shared stylesheet rather than copying it). The app starter
   // always sets "type": "module" in package.json, so the config is ESM.
@@ -714,11 +737,15 @@ module.exports = ${body};
 // exists, resolves with null (the caller keeps the existing settings).
 function ensureConfig(cliOptions) {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "swatchkit.config.js");
-
-  const configExists = CONFIG_FILES.some((f) =>
-    fs.existsSync(path.join(cwd, f)),
+  const existingConfigPath = CONFIG_FILES.map((f) => path.join(cwd, f)).find(
+    (f) => fs.existsSync(f),
   );
+  const configPath =
+    cliOptions.astro && existingConfigPath
+      ? existingConfigPath
+      : path.join(cwd, cliOptions.astro ? "swatchkit.config.mjs" : "swatchkit.config.js");
+
+  const configExists = Boolean(existingConfigPath);
 
   if (configExists && !cliOptions.force) {
     return Promise.resolve(null);
@@ -734,7 +761,12 @@ function ensureConfig(cliOptions) {
     }
     fs.writeFileSync(
       configPath,
-      generateConfig(cssDir, cliOptions.app, cliOptions.standalone),
+      generateConfig(
+        cssDir,
+        cliOptions.app,
+        cliOptions.standalone,
+        cliOptions.astro,
+      ),
     );
     const mode = cliOptions.app
       ? ", integrated app"
@@ -742,7 +774,7 @@ function ensureConfig(cliOptions) {
         ? ", standalone"
         : "";
     console.log(
-      `+ Created: swatchkit.config.js (cssDir: ${cssDir}${mode})`,
+      `+ Created: ${path.basename(configPath)} (cssDir: ${cssDir}${mode})`,
     );
     return cssDir;
   };
@@ -870,6 +902,167 @@ Done! Here's what to do next:
   2. Run "swatchkit" to build the pattern library
 
   3. Open ${outputIndexRel} to view it
+  `);
+}
+
+// --- 6.4 Astro Starter Scaffold (swatchkit init --app --astro) ---
+// Adds the shared render-function examples and pattern swatches to an existing
+// Astro project. Astro owns pages, layouts, and asset bundling; SwatchKit writes
+// its separate static site into public/swatchkit.
+function scaffoldAstro(settings, options) {
+  const cwd = process.cwd();
+  const appTemplates = path.join(__dirname, "src/templates/app");
+
+  console.log("\n[SwatchKit] Scaffolding Astro app integration...");
+
+  const fileMap = [
+    ["src/components/button.js", "src/components/button.js"],
+    ["src/components/card.js", "src/components/card.js"],
+    ["css/button.css", path.join(settings.cssDir, "swatches", "button.css")],
+    ["css/card.css", path.join(settings.cssDir, "swatches", "card.css")],
+    ["swatches/button/index.js", "swatchkit/swatches/button/index.js"],
+    [
+      "swatches/button/description.html",
+      "swatchkit/swatches/button/description.html",
+    ],
+    ["swatches/card/index.js", "swatchkit/swatches/card/index.js"],
+    [
+      "swatches/card/description.html",
+      "swatchkit/swatches/card/description.html",
+    ],
+  ];
+
+  for (const [rel, destRel] of fileMap) {
+    const src = path.join(appTemplates, rel);
+    const dest = path.isAbsolute(destRel) ? destRel : path.join(cwd, destRel);
+    const exists = fs.existsSync(dest);
+    if (exists && !options.force) {
+      console.log(`  = Skipped (exists): ${path.relative(cwd, dest)}`);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (exists && options.force) {
+      const backupPath = getBackupPath(dest);
+      fs.copyFileSync(dest, backupPath);
+      console.log(
+        `  ~ Backed up: ${path.relative(cwd, dest)} → ${path.basename(backupPath)}`,
+      );
+    }
+    fs.copyFileSync(src, dest);
+    console.log(`  ${exists ? "~ Updated" : "+ Created"}: ${path.relative(cwd, dest)}`);
+  }
+
+  // Register example component styles in the shared SwatchKit stylesheet.
+  const swatchIndex = path.join(settings.cssDir, "swatches", "index.css");
+  if (fs.existsSync(swatchIndex)) {
+    let css = fs.readFileSync(swatchIndex, "utf-8");
+    let changed = false;
+    for (const imp of ['@import "button.css";', '@import "card.css";']) {
+      if (!css.includes(imp)) {
+        css = css.trimEnd() + "\n" + imp + "\n";
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(swatchIndex, css);
+      console.log(
+        `  ~ Updated: ${path.relative(cwd, swatchIndex)} (registered button.css, card.css)`,
+      );
+    }
+  }
+
+  const pkgPath = path.join(cwd, "package.json");
+  const pkgExisted = fs.existsSync(pkgPath);
+  let pkg = {};
+  if (pkgExisted) {
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    } catch {
+      console.warn("  ! Could not parse existing package.json — leaving it untouched.");
+      pkg = null;
+    }
+  }
+
+  if (pkg) {
+    const before = pkgExisted ? fs.readFileSync(pkgPath, "utf-8") : null;
+    pkg.name = pkg.name || path.basename(cwd);
+    pkg.version = pkg.version || "1.0.0";
+    pkg.private = pkg.private !== undefined ? pkg.private : true;
+    pkg.type = "module";
+    pkg.scripts = pkg.scripts || {};
+
+    if (pkg.scripts["build:swatchkit"] === undefined || options.force) {
+      pkg.scripts["build:swatchkit"] = "swatchkit";
+    }
+    if (pkg.scripts["swatchkit:watch"] === undefined || options.force) {
+      pkg.scripts["swatchkit:watch"] = "swatchkit --watch";
+    }
+
+    // Chain the standard Astro build when it is safe to identify it. Custom
+    // build scripts are left alone; users can call build:swatchkit explicitly.
+    if (pkg.scripts.build === undefined) {
+      pkg.scripts.build = "npm run build:swatchkit && astro build";
+    } else if (
+      pkg.scripts.build === "astro build" &&
+      pkg.scripts["build:astro"] === undefined
+    ) {
+      pkg.scripts["build:astro"] = "astro build";
+      pkg.scripts.build = "npm run build:swatchkit && npm run build:astro";
+    }
+
+    // Astro's default dev script can safely be wrapped so the generated site
+    // rebuilds while the app is running. Leave customized dev commands alone.
+    if (
+      pkg.scripts.dev === "astro dev" &&
+      pkg.scripts["dev:astro"] === undefined
+    ) {
+      pkg.scripts["dev:astro"] = "astro dev";
+      pkg.scripts.dev = "npm-run-all --parallel dev:astro swatchkit:watch";
+      pkg.devDependencies = pkg.devDependencies || {};
+      if (pkg.devDependencies["npm-run-all"] === undefined) {
+        pkg.devDependencies["npm-run-all"] = "^4.1.5";
+      }
+    }
+
+    pkg.devDependencies = pkg.devDependencies || {};
+    if (
+      pkg.devDependencies.swatchkit === undefined &&
+      pkg.dependencies?.swatchkit === undefined
+    ) {
+      const swatchkitVersion = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "package.json"), "utf-8"),
+      ).version;
+      pkg.devDependencies.swatchkit = `^${swatchkitVersion}`;
+    }
+
+    const after = JSON.stringify(pkg, null, 2) + "\n";
+    if (!pkgExisted) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  + Created: package.json (Astro scripts + devDependencies)");
+    } else if (after !== before) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  ~ Updated: package.json (Astro scripts + devDependencies)");
+    } else {
+      console.log("  = package.json already up to date");
+    }
+  }
+
+  console.log(`
+Done! Astro integration scaffolded. Next:
+
+  1. Ensure Astro imports your shared stylesheet (for example, in a layout):
+       import "../styles/main.css";
+
+  2. Build the separate pattern library:
+       npm run build:swatchkit
+
+     It is served at /swatchkit/ because it is generated under public/swatchkit/.
+
+  3. Start Astro and SwatchKit together during development:
+       npm run dev
+
+     If your existing dev script was customized, run "npm run swatchkit:watch"
+     in a second terminal.
 `);
 }
 
@@ -1161,6 +1354,13 @@ Done! Standalone SwatchKit starter scaffolded. Next:
 
 // Entry point for the `init` command: ensure config, then scaffold.
 async function runInit(cliOptions) {
+  if (cliOptions.astro && !cliOptions.app) {
+    console.error(
+      '[SwatchKit] --astro is an app starter. Run "swatchkit init --app --astro".',
+    );
+    process.exit(1);
+  }
+
   if (cliOptions.app && cliOptions.standalone) {
     console.error(
       '[SwatchKit] init --app and init --standalone are separate starters. Use --app when SwatchKit sits beside a real app, or --standalone when SwatchKit is the hosted app.',
@@ -1172,7 +1372,7 @@ async function runInit(cliOptions) {
   // package.json "type": "module" BEFORE writing/loading the ESM config, so the
   // config doesn't get loaded as CommonJS and fail with "Unexpected token
   // 'export'". (Plain `init` keeps matching the existing package.json#type.)
-  if (cliOptions.app || cliOptions.standalone) {
+  if (cliOptions.app || cliOptions.astro || cliOptions.standalone) {
     ensureEsmPackageJson();
   }
 
@@ -1185,7 +1385,9 @@ async function runInit(cliOptions) {
 
   scaffold(settings, cliOptions);
 
-  if (cliOptions.app) {
+  if (cliOptions.astro) {
+    scaffoldAstro(settings, cliOptions);
+  } else if (cliOptions.app) {
     scaffoldApp(settings, cliOptions);
   } else if (cliOptions.standalone) {
     scaffoldStandalone(settings, cliOptions);
@@ -1593,8 +1795,8 @@ async function build(settings) {
           .replace(/'/g, "&#039;");
 
         const previewHref = p.sectionSlug
-          ? `preview/${p.sectionSlug}/${p.slug}/`
-          : `preview/${p.slug}/`;
+          ? `preview/${p.sectionSlug}/${p.slug}/${settings.explicitHtmlLinks ? "index.html" : ""}`
+          : `preview/${p.slug}/${settings.explicitHtmlLinks ? "index.html" : ""}`;
 
         return settings.renderSwatchSection({
           slug: p.slug,
@@ -1795,16 +1997,20 @@ Commands:
   init         Create swatchkit.config.js and scaffold the project
                (CSS blueprints, layout templates, starter tokens.css)
   init --app   Also scaffold an integrated app starter: esbuild build
-               scripts, shared renderers, a home page, two example
-               swatches, and watch-enabled package.json scripts
+                scripts, shared renderers, a home page, two example
+                swatches, and watch-enabled package.json scripts
+  init --app --astro
+                Add shared renderers and example swatches to an existing Astro
+                app. The separate library is generated under public/swatchkit/
   init --standalone
                Scaffold SwatchKit as the whole hosted site, outputting to
                dist/index.html with copied CSS assets
   (default)    Build the pattern library
 
 Options:
-      --app       With "init": scaffold the integrated esbuild app starter
-      --standalone
+       --app       With "init": scaffold the integrated esbuild app starter
+       --astro     With "init --app": scaffold an Astro app integration
+       --standalone
                   With "init": scaffold root-hosted standalone SwatchKit
   -w, --watch     Watch files and rebuild on change
   -c, --config    Path to config file
@@ -1836,6 +2042,12 @@ Options:
     if (cliOptions.standalone && cliOptions.command !== "init") {
       console.error(
         '[SwatchKit] --standalone is only supported with init. Run: swatchkit init --standalone --cssDir ./src/css',
+      );
+      process.exit(1);
+    }
+    if (cliOptions.astro && cliOptions.command !== "init") {
+      console.error(
+        '[SwatchKit] --astro is only supported with init. Run: swatchkit init --app --astro --cssDir ./src/css',
       );
       process.exit(1);
     }

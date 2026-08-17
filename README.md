@@ -313,6 +313,10 @@ export default {
   // Default: "../<basename of cssDir>/"
   cssPath: "../css/",
 
+  // Include index.html in iframe and preview links for static servers that
+  // do not resolve directory URLs to index.html (for example Astro public/).
+  explicitHtmlLinks: false,
+
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
 
@@ -376,6 +380,7 @@ swatchkit [command] [options]
 | :--- | :--- |
 | `swatchkit init` | Create `swatchkit.config.js` **and** scaffold CSS blueprints, layout templates, and a starter `tokens.css`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. Status report if already initialized. |
 | `swatchkit init --app` | Also scaffold an integrated esbuild app starter (build scripts, shared renderers, home page, two example swatches, watch-enabled `package.json`). |
+| `swatchkit init --app --astro` | Add shared renderers and example swatches to an existing Astro app. Generates the separate library under `public/swatchkit/`. |
 | `swatchkit init --standalone` | Scaffold SwatchKit as the whole hosted site (`dist/index.html`, `dist/preview/*`, copied CSS/JS assets). |
 | `swatchkit init --force` | Overwrite all managed files (with `.bak` backups). |
 | `swatchkit init --dry-run` | Show what would change, write nothing. |
@@ -384,6 +389,7 @@ swatchkit [command] [options]
 | Flag | Short | What it does |
 | :--- | :--- | :--- |
 | `--app` | | With `init`: scaffold the integrated esbuild app starter. |
+| `--astro` | | With `init --app`: scaffold an Astro app integration. |
 | `--watch` | `-w` | Rebuild on file change. |
 | `--config` | `-c` | Path to config file. |
 | `--input` | `-i` | Pattern source dir (default: `swatchkit/`). |
@@ -435,6 +441,37 @@ SwatchKit only ever writes inside its own output directory — never the rest of
 ```
 
 In watch mode, SwatchKit polls for its output directory and rebuilds if it was wiped by an external tool.
+
+### Astro
+
+Run the Astro starter inside an existing Astro project:
+
+```bash
+swatchkit init --app --astro --cssDir ./src/styles
+```
+
+This keeps Astro in charge of pages and application assets while SwatchKit
+generates an independent static pattern library under `public/swatchkit/`.
+Astro serves that directory at `/swatchkit/` in development and copies it into
+the production output. The scaffold adds shared HTML-string renderers under
+`src/components/` and example swatches under `swatchkit/swatches/`, but does
+not create or replace Astro pages, layouts, or configuration.
+
+Import the shared stylesheet from an Astro layout or page so the application
+uses the same source CSS:
+
+```astro
+---
+import "../styles/main.css";
+---
+```
+
+The generated SwatchKit pages use `cssCopy: true` by default. This gives the
+separate static library stable, self-contained CSS URLs instead of depending on
+Astro's potentially hashed CSS output. During development, `init --app --astro`
+adds `swatchkit:watch`; it wraps the standard `astro dev` script when that script
+has not been customized. It also enables `explicitHtmlLinks`, because Astro's
+`public/` directory does not resolve `/swatchkit/` to `/swatchkit/index.html`.
 
 ## Design tokens
 
