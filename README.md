@@ -105,6 +105,27 @@ npm run dev      # builds, watches, serves at http://localhost:8080
 The app is at `/`, the pattern library at `/swatchkit/`, both sharing one bundled
 CSS file. See [the hand-rolled app setup guide](./docs/app-setup-handrolled.md).
 
+### React app in one command
+
+For a Vite app with React components and interactive React swatches:
+
+```bash
+mkdir my-react-app && cd my-react-app
+npm init -y
+npx swatchkit init --app --react --cssDir ./src/css
+npm install
+npm run dev
+```
+
+This scaffolds `src/components/*.jsx`, a Vite app, and React swatches. A swatch
+with `index.jsx` is server-rendered into HTML. If it also has `client.jsx`,
+SwatchKit bundles that file as `client.js` and adds it to the preview so one
+React root can hydrate and retain event handlers.
+
+SwatchKit writes to `public/swatchkit`, so Vite serves the pattern library at
+`/swatchkit/` in dev and copies it to `dist/swatchkit/` on build — no dev-server
+plumbing either way. See [the React app guide](./docs/react-app.md).
+
 > **Set `"type": "module"` before running `init --app`.** The app starter is
 > ESM, so it writes an ESM `swatchkit.config.js` (`export default { … }`) and
 > ESM build scripts. If your `package.json` isn't `"type": "module"`, Node loads
@@ -168,7 +189,7 @@ Rules:
 
 ## JavaScript swatches
 
-A swatch folder may use `index.js` instead of `index.html` to generate HTML programmatically. This is how you share render functions between your app and the library.
+A swatch folder may use `index.js` or `index.jsx` instead of `index.html` to generate HTML programmatically. This is how you share render functions or React components between your app and the library.
 
 ```js
 // swatchkit/swatches/button/index.js
@@ -183,10 +204,36 @@ export default html`
 `;
 ```
 
-- `index.js` runs at build time and must default-export an HTML string. Non-string defaults fail with a clear error.
-- If both `index.js` and `index.html` exist, `index.js` wins.
-- `index.js` is reserved for SwatchKit and is not copied as a preview asset. Other `.js` files in the folder are copied (e.g. `demo.js` for browser-side scripts).
+- `index.js` and `index.jsx` run at build time and must default-export an HTML string. Non-string defaults fail with a clear error. JSX entries are compiled with esbuild before they run.
+- If multiple entries exist, `index.js` wins, then `index.jsx`, then `index.html`.
+- `index.js`, `index.jsx`, and `description.html` are reserved for SwatchKit and are not copied as preview assets. Other `.js` files in the folder are copied (e.g. `demo.js` for browser-side scripts).
 - For JavaScript swatches that use `import` / `export`, set `"type": "module"` in your `package.json`. Without that, the swatch runs as CommonJS and `import` syntax is a parse error.
+
+### React swatches
+
+React swatches use the same HTML-string contract after server rendering:
+
+```jsx
+// swatchkit/swatches/button/index.jsx
+import { renderToString } from "react-dom/server";
+import { ButtonGallery } from "../../../src/components/ButtonGallery.jsx";
+
+export default `
+  <div id="button-root">
+    ${renderToString(<ButtonGallery />)}
+  </div>
+`;
+```
+
+Add `client.jsx` beside `index.jsx` when the swatch is interactive. SwatchKit
+bundles it for the browser as a minified production `client.js` and injects the
+module script into the preview. If a component imports its own CSS, that is
+emitted as `client.css` and linked too. The client entry should hydrate the same
+root with `hydrateRoot()`. Use `renderToString()` for hydratable markup;
+`renderToStaticMarkup()` is for non-interactive examples only.
+
+A swatch whose JSX fails to compile is reported and skipped; the rest of the
+library still builds.
 
 ## The renderer contract
 
@@ -316,6 +363,10 @@ export default {
   // Exclude files from the pattern library (supports globs).
   exclude: ["*.test.js"],
 
+  // Additional source paths to watch, useful when JSX swatches import
+  // components from outside swatchkit/. Paths are relative to the project.
+  watch: ["./src"],
+
   // Control sidebar section order and swatch order inside each section.
   // Order lists are partial: listed slugs come first; unlisted items follow
   // alphabetically. Ordering runs after exclude and tokenBlocks docs filters.
@@ -376,6 +427,7 @@ swatchkit [command] [options]
 | :--- | :--- |
 | `swatchkit init` | Create `swatchkit.config.js` **and** scaffold CSS blueprints, layout templates, and a starter `tokens.css`. Prompts for `cssDir`; pass `--cssDir` to skip the prompt. Status report if already initialized. |
 | `swatchkit init --app` | Also scaffold an integrated esbuild app starter (build scripts, shared renderers, home page, two example swatches, watch-enabled `package.json`). |
+| `swatchkit init --app --react` | Scaffold an integrated Vite + React app starter with JSX components and interactive server-rendered/hydrated swatches. |
 | `swatchkit init --standalone` | Scaffold SwatchKit as the whole hosted site (`dist/index.html`, `dist/preview/*`, copied CSS/JS assets). |
 | `swatchkit init --force` | Overwrite all managed files (with `.bak` backups). |
 | `swatchkit init --dry-run` | Show what would change, write nothing. |
@@ -384,6 +436,7 @@ swatchkit [command] [options]
 | Flag | Short | What it does |
 | :--- | :--- | :--- |
 | `--app` | | With `init`: scaffold the integrated esbuild app starter. |
+| `--react` | | With `init --app`: scaffold the integrated Vite + React app starter. |
 | `--watch` | `-w` | Rebuild on file change. |
 | `--config` | `-c` | Path to config file. |
 | `--input` | `-i` | Pattern source dir (default: `swatchkit/`). |

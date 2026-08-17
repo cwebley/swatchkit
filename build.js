@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const chokidar = require("chokidar");
+const esbuild = require("esbuild");
 const { parseTokenBlocks } = require("./src/token-parser");
 const {
   generateUtilities,
@@ -30,6 +31,7 @@ function parseArgs(args) {
     force: false,
     dryRun: false,
     app: false,
+    react: false,
     standalone: false,
   };
 
@@ -39,6 +41,8 @@ function parseArgs(args) {
       options.command = "init";
     } else if (arg === "--app") {
       options.app = true;
+    } else if (arg === "--react") {
+      options.react = true;
     } else if (arg === "--standalone") {
       options.standalone = true;
     } else if (arg === "-w" || arg === "--watch") {
@@ -349,6 +353,12 @@ function resolveSettings(cliOptions, fileConfig) {
   // Exclude patterns
   const exclude = fileConfig.exclude || [];
 
+  // Additional source paths to watch. React swatches commonly import
+  // components from src/, which is outside the swatchkit/ folder.
+  const watchPaths = Array.isArray(fileConfig.watch)
+    ? fileConfig.watch.map((watchPath) => path.resolve(cwd, watchPath))
+    : [];
+
   // CSS copy behavior
   // When true (default), copies cssDir into outDir/css/ for a self-contained build.
   // When false, skips the copy — expects CSS to already exist at cssPath relative to output.
@@ -377,6 +387,7 @@ function resolveSettings(cliOptions, fileConfig) {
     cssDir,
     tokenSources,
     exclude,
+    watchPaths,
     cssCopy,
     cssPath,
     allowRootOutDir: fileConfig.allowRootOutDir === true,
@@ -598,10 +609,26 @@ function reportInitStatus(settings) {
 }
 
 // --- 5. Config Generation ---
-function generateConfig(cssDir, app = false, standalone = false) {
+function generateConfig(cssDir, app = false, standalone = false, react = false) {
   // App mode: integrated config (a build tool owns the CSS, so SwatchKit
   // references the shared stylesheet rather than copying it). The app starter
   // always sets "type": "module" in package.json, so the config is ESM.
+  if (app && react) {
+    // Vite serves public/ during dev and copies it into dist/ on build, so
+    // writing the pattern library there gives one output path that works in
+    // both — no dev-server plumbing to keep in sync. CSS is copied alongside
+    // it (the default) so previews are self-contained and pick up edits as
+    // soon as SwatchKit rebuilds.
+    const reactBody = `{
+  cssDir: "${cssDir}",
+  outDir: "./public/swatchkit",
+
+  // JSX swatches import components from src/, which is outside swatchkit/.
+  watch: ["./src"],
+}`;
+    return `// swatchkit.config.js\nexport default ${reactBody};\n`;
+  }
+
   if (app) {
     const appBody = `{
   cssDir: "${cssDir}",
@@ -734,7 +761,7 @@ function ensureConfig(cliOptions) {
     }
     fs.writeFileSync(
       configPath,
-      generateConfig(cssDir, cliOptions.app, cliOptions.standalone),
+      generateConfig(cssDir, cliOptions.app, cliOptions.standalone, cliOptions.react),
     );
     const mode = cliOptions.app
       ? ", integrated app"
@@ -879,6 +906,11 @@ Done! Here's what to do next:
 // wires up package.json scripts/devDeps. Idempotent: skips existing files
 // unless --force.
 function scaffoldApp(settings, options) {
+  if (options.react) {
+    scaffoldReactApp(settings, options);
+    return;
+  }
+
   const cwd = process.cwd();
   const appTemplates = path.join(__dirname, "src/templates/app");
 
@@ -1034,6 +1066,192 @@ Done! Integrated app starter scaffolded. Next:
 `);
 }
 
+// --- 6.5 React App Starter Scaffold (swatchkit init --app --react) ---
+function scaffoldReactApp(settings, options) {
+  const cwd = process.cwd();
+  const reactTemplates = path.join(__dirname, "src/templates/react-app");
+  const templatesRoot = path.join(__dirname, "src/templates");
+
+  console.log("\n[SwatchKit] Scaffolding Vite + React app starter...");
+
+  const fileMap = [
+    ["index.html", "index.html"],
+    ["vite.config.js", "vite.config.js"],
+    ["src/main.jsx", "src/main.jsx"],
+    ["src/App.jsx", "src/App.jsx"],
+    ["src/components/Button.jsx", "src/components/Button.jsx"],
+    ["src/components/Card.jsx", "src/components/Card.jsx"],
+    ["src/components/ButtonGallery.jsx", "src/components/ButtonGallery.jsx"],
+    ["swatches/button/index.jsx", "swatchkit/swatches/button/index.jsx"],
+    ["swatches/button/client.jsx", "swatchkit/swatches/button/client.jsx"],
+    [
+      "swatches/button/description.html",
+      "swatchkit/swatches/button/description.html",
+    ],
+    ["swatches/card/index.jsx", "swatchkit/swatches/card/index.jsx"],
+    [
+      "swatches/card/description.html",
+      "swatchkit/swatches/card/description.html",
+    ],
+    ["../app/css/button.css", path.join(settings.cssDir, "swatches", "button.css")],
+    ["../app/css/card.css", path.join(settings.cssDir, "swatches", "card.css")],
+  ];
+
+  for (const [rel, destRel] of fileMap) {
+    const templateRoot = rel.startsWith("../") ? templatesRoot : reactTemplates;
+    const templateRel = rel.startsWith("../") ? rel.slice(3) : rel;
+    const src = path.join(templateRoot, templateRel);
+    const dest = path.isAbsolute(destRel) ? destRel : path.join(cwd, destRel);
+    const exists = fs.existsSync(dest);
+    if (exists && !options.force) {
+      console.log(`  = Skipped (exists): ${path.relative(cwd, dest)}`);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (exists && options.force) {
+      const backupPath = getBackupPath(dest);
+      fs.copyFileSync(dest, backupPath);
+      console.log(
+        `  ~ Backed up: ${path.relative(cwd, dest)} → ${path.basename(backupPath)}`,
+      );
+    }
+    fs.copyFileSync(src, dest);
+    console.log(`  ${exists ? "~ Updated" : "+ Created"}: ${path.relative(cwd, dest)}`);
+  }
+
+  const swatchIndex = path.join(settings.cssDir, "swatches", "index.css");
+  if (fs.existsSync(swatchIndex)) {
+    let css = fs.readFileSync(swatchIndex, "utf-8");
+    let changed = false;
+    for (const imp of ['@import "button.css";', '@import "card.css";']) {
+      if (!css.includes(imp)) {
+        css = css.trimEnd() + "\n" + imp + "\n";
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(swatchIndex, css);
+      console.log(
+        `  ~ Updated: ${path.relative(cwd, swatchIndex)} (registered button.css, card.css)`,
+      );
+    }
+  }
+
+  // public/swatchkit is build output, not source — Vite just happens to be
+  // the thing that serves it in dev and copies it on build.
+  const gitignorePath = path.join(cwd, ".gitignore");
+  const ignoreEntries = ["dist", "node_modules", "public/swatchkit"];
+  const existingIgnore = fs.existsSync(gitignorePath)
+    ? fs.readFileSync(gitignorePath, "utf-8")
+    : "";
+  const ignoreLines = existingIgnore.split("\n").map((line) => line.trim());
+  const missing = ignoreEntries.filter((entry) => !ignoreLines.includes(entry));
+  if (missing.length > 0) {
+    const prefix = existingIgnore.trimEnd();
+    fs.writeFileSync(
+      gitignorePath,
+      (prefix ? prefix + "\n" : "") + missing.join("\n") + "\n",
+    );
+    console.log(
+      `  ${existingIgnore ? "~ Updated" : "+ Created"}: .gitignore (${missing.join(", ")})`,
+    );
+  }
+
+  const pkgPath = path.join(cwd, "package.json");
+  const pkgExisted = fs.existsSync(pkgPath);
+  let pkg = {};
+  if (pkgExisted) {
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    } catch {
+      console.warn("  ! Could not parse existing package.json — leaving it untouched.");
+      pkg = null;
+    }
+  }
+
+  if (pkg) {
+    const before = pkgExisted ? fs.readFileSync(pkgPath, "utf-8") : null;
+    pkg.name = pkg.name || path.basename(cwd);
+    pkg.version = pkg.version || "1.0.0";
+    pkg.private = pkg.private !== undefined ? pkg.private : true;
+    pkg.type = "module";
+
+    // SwatchKit runs first in both flows: it writes public/swatchkit, and
+    // `vite build` copies public/ into dist/ as its final step. In dev the
+    // ordering matters too — Vite only mounts public-dir serving if the
+    // directory exists when the server boots.
+    const scripts = {
+      dev: "npm run patterns && npm-run-all --parallel dev:app patterns:watch",
+      "dev:app": "vite",
+      "build:app": "vite build",
+      "build:swatchkit": "swatchkit",
+      build: "npm run build:swatchkit && npm run build:app",
+      patterns: "swatchkit",
+      "patterns:watch": "swatchkit --watch",
+      preview: "vite preview",
+    };
+    pkg.scripts = pkg.scripts || {};
+    for (const [key, value] of Object.entries(scripts)) {
+      if (pkg.scripts[key] === undefined || options.force) pkg.scripts[key] = value;
+    }
+
+    const dependencies = {
+      react: "^19.1.1",
+      "react-dom": "^19.1.1",
+    };
+    pkg.dependencies = pkg.dependencies || {};
+    for (const [key, value] of Object.entries(dependencies)) {
+      if (pkg.dependencies[key] === undefined) pkg.dependencies[key] = value;
+    }
+
+    const devDependencies = {
+      "@vitejs/plugin-react": "^5.0.0",
+      "npm-run-all": "^4.1.5",
+      vite: "^7.1.2",
+    };
+    pkg.devDependencies = pkg.devDependencies || {};
+    for (const [key, value] of Object.entries(devDependencies)) {
+      if (pkg.devDependencies[key] === undefined) pkg.devDependencies[key] = value;
+    }
+    if (pkg.devDependencies.swatchkit === undefined && pkg.dependencies.swatchkit === undefined) {
+      const swatchkitVersion = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "package.json"), "utf-8"),
+      ).version;
+      pkg.devDependencies.swatchkit = `^${swatchkitVersion}`;
+    }
+
+    const after = JSON.stringify(pkg, null, 2) + "\n";
+    if (!pkgExisted) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  + Created: package.json (React + Vite scripts and dependencies)");
+    } else if (after !== before) {
+      fs.writeFileSync(pkgPath, after);
+      console.log("  ~ Updated: package.json (React + Vite scripts and dependencies)");
+    } else {
+      console.log("  = package.json already up to date");
+    }
+  }
+
+  console.log(`
+Done! React app starter scaffolded. Next:
+
+  1. Install dependencies:
+       npm install
+
+  2. Start the dev loop (Vite + SwatchKit watch):
+       npm run dev
+
+     The app is at /, the pattern library at /swatchkit/. Edit a component
+     in src/components/ and both update.
+
+  3. Production build:
+       npm run build
+
+     SwatchKit writes public/swatchkit/, then Vite builds the app and copies
+     it to dist/swatchkit/.
+`);
+}
+
 // --- 6.6 Standalone Starter Scaffold (swatchkit init --standalone) ---
 // Adds reusable render-function examples and a small package.json dev loop for
 // SwatchKit-as-the-site projects. No app page or bundler is scaffolded.
@@ -1168,6 +1386,13 @@ async function runInit(cliOptions) {
     process.exit(1);
   }
 
+  if (cliOptions.react && !cliOptions.app) {
+    console.error(
+      '[SwatchKit] --react is an app starter option. Use: swatchkit init --app --react',
+    );
+    process.exit(1);
+  }
+
   // The --app starter is ESM (config + build scripts use export/import). Make
   // package.json "type": "module" BEFORE writing/loading the ESM config, so the
   // config doesn't get loaded as CommonJS and fail with "Unexpected token
@@ -1213,10 +1438,127 @@ function copyDir(src, dest, force = false) {
 }
 
 // Special filenames that SwatchKit reads and treats differently — not copied verbatim.
-const SWATCH_SPECIAL_FILES = new Set(["index.html", "index.js", "description.html"]);
+const SWATCH_SPECIAL_FILES = new Set([
+  "index.html",
+  "index.js",
+  "index.jsx",
+  "description.html",
+  "client.jsx",
+]);
 
-// Recursively copy a swatch's assets (all files and subdirs except index.html,
-// description.html, and anything prefixed with _ or .) to destDir.
+function findSwatchEntry(swatchDir) {
+  for (const filename of ["index.js", "index.jsx", "index.html"]) {
+    const candidate = path.join(swatchDir, filename);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+// A swatch folder with content but no recognized entry is almost always a
+// mistake (a typo, or an index.jsx built by a SwatchKit too old to read it).
+// Silently dropping it is what makes that hard to diagnose.
+function warnMissingSwatchEntry(swatchDir) {
+  const hasFiles = fs
+    .readdirSync(swatchDir, { withFileTypes: true })
+    .some((entry) => entry.isFile() && !entry.name.startsWith("."));
+  if (!hasFiles) return;
+  console.warn(
+    `[SwatchKit] Skipping ${swatchDir}: no index.js, index.jsx, or index.html.`,
+  );
+}
+
+// JSX swatches are compiled to an ESM module under the project's
+// node_modules/.cache so external imports such as react and react-dom/server
+// resolve from the user's node_modules (Node walks up from the output file).
+// Local imports are bundled in. Writing under node_modules keeps build
+// scratch out of the project root, where it would show up in git status and
+// linger if the process is interrupted.
+async function loadSwatchModule(entryPath) {
+  if (path.extname(entryPath) !== ".jsx") {
+    const url = pathToFileURL(entryPath).href + "?t=" + Date.now();
+    return import(url);
+  }
+
+  const cacheDir = path.join(process.cwd(), "node_modules", ".cache", "swatchkit");
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(cacheDir, "server-"));
+  const outputFile = path.join(tempDir, "index.mjs");
+
+  try {
+    await esbuild.build({
+      entryPoints: [entryPath],
+      outfile: outputFile,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      packages: "external",
+      jsx: "automatic",
+      sourcemap: false,
+      logLevel: "silent",
+    });
+
+    const url = pathToFileURL(outputFile).href + "?t=" + Date.now();
+    return await import(url);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+// Bundles a swatch's client.jsx for the browser. minify + a production
+// NODE_ENV are what keep React out of its development build: without them the
+// bundle carries the full warning machinery and runs ~5x larger.
+async function bundleSwatchClient(entryPath, outputFile) {
+  const result = await esbuild.build({
+    entryPoints: [entryPath],
+    outfile: outputFile,
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    jsx: "automatic",
+    minify: true,
+    define: { "process.env.NODE_ENV": '"production"' },
+    metafile: true,
+    sourcemap: false,
+    logLevel: "silent",
+  });
+
+  // A component that imports its own CSS makes esbuild emit a stylesheet
+  // beside the script. The preview has to link it or those styles vanish.
+  return {
+    css: Object.keys(result.metafile.outputs).some((out) => out.endsWith(".css")),
+  };
+}
+
+// Copies a swatch's static assets and, when the swatch has a client entry,
+// bundles it. Returns null when there is no client entry, otherwise a
+// descriptor of what was emitted.
+async function prepareSwatchAssets(srcDir, destDir) {
+  copySwatchAssets(srcDir, destDir);
+
+  const clientEntry = path.join(srcDir, "client.jsx");
+  if (!fs.existsSync(clientEntry)) return null;
+
+  try {
+    return await bundleSwatchClient(clientEntry, path.join(destDir, "client.js"));
+  } catch (error) {
+    throw new Error(`Could not bundle ${clientEntry}: ${error.message}`);
+  }
+}
+
+function appendClientAssets(content, clientAssets) {
+  if (!clientAssets) return content;
+  let output = content;
+  if (clientAssets.css && !/["']\.\/client\.css["']/.test(output)) {
+    output = `<link rel="stylesheet" href="./client.css" />\n${output}`;
+  }
+  if (!/["']\.\/client\.js["']/.test(output)) {
+    output = `${output}\n<script type="module" src="./client.js"></script>`;
+  }
+  return output;
+}
+
+// Recursively copy a swatch's assets (all files and subdirs except SwatchKit
+// entry files and anything prefixed with _ or .) to destDir.
 function copySwatchAssets(srcDir, destDir) {
   if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
   for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
@@ -1256,28 +1598,27 @@ async function scanSwatches(dir, destDir, exclude = []) {
 
     // Handle Component Directory
     if (stat.isDirectory()) {
-      const indexJs = path.join(itemPath, "index.js");
-      const indexHtml = path.join(itemPath, "index.html");
+      const entryPath = findSwatchEntry(itemPath);
 
       // index.js takes priority over index.html
-      if (fs.existsSync(indexJs)) {
+      if (entryPath && path.extname(entryPath) !== ".html") {
         try {
-          const url = pathToFileURL(indexJs).href + "?t=" + Date.now();
-          const mod = await import(url);
+          const mod = await loadSwatchModule(entryPath);
 
           if (typeof mod.default !== "string") {
-            throw new Error(`index.js must default-export an HTML string.`);
+            throw new Error(`${path.basename(entryPath)} must default-export an HTML string.`);
           }
           content = mod.default;
         } catch (e) {
           console.error(
-            `[SwatchKit] Error loading ${indexJs}: ${e.message}`,
+            `[SwatchKit] Error loading ${entryPath}: ${e.message}`,
           );
           continue;
         }
-      } else if (fs.existsSync(indexHtml)) {
-        content = fs.readFileSync(indexHtml, "utf-8");
+      } else if (entryPath) {
+        content = fs.readFileSync(entryPath, "utf-8");
       } else {
+        warnMissingSwatchEntry(itemPath);
         continue;
       }
 
@@ -1294,9 +1635,17 @@ async function scanSwatches(dir, destDir, exclude = []) {
       // folder into its preview output directory so index.html can reference
       // them with relative paths (e.g. ./styles.css, ./script.js, ./img/).
       // Files and directories prefixed with _ or . are skipped.
+      // A failure here is scoped to this swatch — a broken client.jsx must not
+      // take down the rest of the library.
       if (destDir) {
         const swatchDestDir = path.join(destDir, item);
-        copySwatchAssets(itemPath, swatchDestDir);
+        try {
+          const clientAssets = await prepareSwatchAssets(itemPath, swatchDestDir);
+          content = appendClientAssets(content, clientAssets);
+        } catch (e) {
+          console.error(`[SwatchKit] Error in ${itemPath}: ${e.message}`);
+          continue;
+        }
       }
     }
     // Handle Single File
@@ -1449,12 +1798,9 @@ async function build(settings) {
 
       const itemPath = path.join(settings.swatchkitDir, item);
       if (fs.lstatSync(itemPath).isDirectory()) {
-        // Check if section has any index.js or index.html (indicating it's not just a container)
-        const hasIndexJs = fs.existsSync(path.join(itemPath, "index.js"));
-        const hasIndexHtml = fs.existsSync(path.join(itemPath, "index.html"));
-
-        // If it has neither index.js nor index.html, treat it as a section container
-        if (!hasIndexJs && !hasIndexHtml) {
+        // A folder with its own entry file is a swatch, not a section
+        // container — the root-swatch pass below handles it.
+        if (!findSwatchEntry(itemPath)) {
           const sectionName =
             item === "tokens" ? "Design Tokens" : toTitleCase(item);
           const sectionDestDir = path.join(settings.distPreviewDir, item);
@@ -1496,49 +1842,55 @@ async function build(settings) {
         const content = fs.readFileSync(itemPath, "utf-8");
         rootSwatches.push({ slug, name, content, sectionSlug: null });
       } else if (stat.isDirectory()) {
-        const indexJs = path.join(itemPath, "index.js");
-        const indexHtml = path.join(itemPath, "index.html");
+        const entryPath = findSwatchEntry(itemPath);
 
-        if (fs.existsSync(indexJs)) {
+        if (entryPath && path.extname(entryPath) !== ".html") {
           try {
-            const url = pathToFileURL(indexJs).href + "?t=" + Date.now();
-            const mod = await import(url);
+            const mod = await loadSwatchModule(entryPath);
             if (typeof mod.default !== "string") {
-              throw new Error(`index.js must default-export an HTML string.`);
+              throw new Error(`${path.basename(entryPath)} must default-export an HTML string.`);
             }
             const descriptionFile = path.join(itemPath, "description.html");
             const description = fs.existsSync(descriptionFile)
               ? fs.readFileSync(descriptionFile, "utf-8")
               : null;
             const swatchDestDir = path.join(settings.distPreviewDir, item);
-            copySwatchAssets(itemPath, swatchDestDir);
+            const clientAssets = await prepareSwatchAssets(itemPath, swatchDestDir);
             rootSwatches.push({
               slug: item,
               name: toTitleCase(item),
-              content: mod.default,
+              content: appendClientAssets(mod.default, clientAssets),
               description,
               sectionSlug: null,
             });
           } catch (e) {
             console.error(
-              `[SwatchKit] Error loading ${indexJs}: ${e.message}`,
+              `[SwatchKit] Error loading ${entryPath}: ${e.message}`,
             );
             continue;
           }
-        } else if (fs.existsSync(indexHtml)) {
+        } else if (entryPath) {
           const descriptionFile = path.join(itemPath, "description.html");
           const description = fs.existsSync(descriptionFile)
             ? fs.readFileSync(descriptionFile, "utf-8")
             : null;
           const swatchDestDir = path.join(settings.distPreviewDir, item);
-          copySwatchAssets(itemPath, swatchDestDir);
-          rootSwatches.push({
-            slug: item,
-            name: toTitleCase(item),
-            content: fs.readFileSync(indexHtml, "utf-8"),
-            description,
-            sectionSlug: null,
-          });
+          try {
+            const clientAssets = await prepareSwatchAssets(itemPath, swatchDestDir);
+            rootSwatches.push({
+              slug: item,
+              name: toTitleCase(item),
+              content: appendClientAssets(
+                fs.readFileSync(entryPath, "utf-8"),
+                clientAssets,
+              ),
+              description,
+              sectionSlug: null,
+            });
+          } catch (e) {
+            console.error(`[SwatchKit] Error in ${itemPath}: ${e.message}`);
+            continue;
+          }
         }
       }
     }
@@ -1707,6 +2059,7 @@ function watch(settings) {
 
   const sourcePaths = [
     settings.swatchkitDir,
+    ...settings.watchPaths,
     settings.projectLayout,
     settings.mainCssFile,
     ...tokenFiles,
@@ -1797,6 +2150,9 @@ Commands:
   init --app   Also scaffold an integrated app starter: esbuild build
                scripts, shared renderers, a home page, two example
                swatches, and watch-enabled package.json scripts
+  init --app --react
+               Scaffold an integrated Vite + React app with hydrated
+               interactive React swatches
   init --standalone
                Scaffold SwatchKit as the whole hosted site, outputting to
                dist/index.html with copied CSS assets
@@ -1804,6 +2160,7 @@ Commands:
 
 Options:
       --app       With "init": scaffold the integrated esbuild app starter
+      --react     With "init --app": scaffold the Vite + React app starter
       --standalone
                   With "init": scaffold root-hosted standalone SwatchKit
   -w, --watch     Watch files and rebuild on change
@@ -1836,6 +2193,13 @@ Options:
     if (cliOptions.standalone && cliOptions.command !== "init") {
       console.error(
         '[SwatchKit] --standalone is only supported with init. Run: swatchkit init --standalone --cssDir ./src/css',
+      );
+      process.exit(1);
+    }
+
+    if (cliOptions.react && cliOptions.command !== "init") {
+      console.error(
+        '[SwatchKit] --react is only supported with init. Run: swatchkit init --app --react --cssDir ./src/css',
       );
       process.exit(1);
     }

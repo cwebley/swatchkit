@@ -31,15 +31,17 @@ function fail(label, detail) {
   failed++;
 }
 
+// Returns the combined stdout/stderr so tests can assert on warnings.
 function runSwatchkit(label, dir, args) {
+  const command = `node "${SWATCHKIT}" ${args.map((a) => `"${a}"`).join(" ")} 2>&1`;
   try {
-    execSync(`node "${SWATCHKIT}" ${args.map((a) => `"${a}"`).join(" ")}`, {
-      cwd: dir,
-      stdio: "pipe",
-    });
+    const output = execSync(command, { cwd: dir, stdio: "pipe" });
     ok(label);
+    return output.toString();
   } catch (e) {
-    fail(label, (e.stderr || e.stdout || e.message).toString().split("\n")[0]);
+    const detail = e.stderr?.length ? e.stderr : e.stdout;
+    fail(label, (detail || e.message).toString().split("\n")[0]);
+    return (detail || "").toString();
   }
 }
 
@@ -66,6 +68,10 @@ function freshDir(name) {
 
 function read(p) {
   return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : "";
+}
+
+function linkNodeModules(dir) {
+  fs.symlinkSync(path.join(__dirname, "..", "node_modules"), path.join(dir, "node_modules"), "junction");
 }
 
 // 1. ESM project, swatchkit init + build
@@ -948,6 +954,186 @@ function read(p) {
       ? ok("--standalone without init errors")
       : fail("--standalone without init errors", (e.stderr || e.stdout || e.message).toString());
   }
+}
+
+// 24. `init --app --react` scaffolds JSX components and hydrated swatches.
+{
+  console.log("\n[24] init --app --react scaffolds hydrated React swatches");
+  const dir = freshDir("24-init-app-react");
+
+  runSwatchkit("init --app --react", dir, [
+    "init",
+    "--app",
+    "--react",
+    "--cssDir",
+    "./src/css",
+  ]);
+
+  const appFiles = [
+    "index.html",
+    "vite.config.js",
+    "src/main.jsx",
+    "src/App.jsx",
+    "src/components/Button.jsx",
+    "src/components/Card.jsx",
+    "src/components/ButtonGallery.jsx",
+    "swatchkit/swatches/button/index.jsx",
+    "swatchkit/swatches/button/client.jsx",
+    "swatchkit/swatches/card/index.jsx",
+  ];
+  let allFiles = true;
+  for (const file of appFiles) {
+    if (!exists(path.join(dir, file))) {
+      allFiles = false;
+      fail(`React app file: ${file}`);
+    }
+  }
+  allFiles ? ok("React app starter files scaffolded") : null;
+
+  const reactPkg = JSON.parse(read(path.join(dir, "package.json")) || "{}");
+  reactPkg.type === "module" &&
+    reactPkg.dependencies?.react &&
+    reactPkg.dependencies?.["react-dom"] &&
+    reactPkg.devDependencies?.vite &&
+    reactPkg.devDependencies?.["@vitejs/plugin-react"] &&
+    reactPkg.devDependencies?.["npm-run-all"] &&
+    reactPkg.scripts?.dev?.includes("patterns:watch")
+    ? ok("React and Vite dependencies scaffolded")
+    : fail("React and Vite dependencies scaffolded");
+
+  const reactConfig = read(path.join(dir, "swatchkit.config.js"));
+  reactConfig.includes('watch: ["./src"]') &&
+    reactConfig.includes('outDir: "./public/swatchkit"')
+    ? ok("React config outputs to public/ and watches component sources")
+    : fail("React config outputs to public/ and watches component sources");
+
+  // Vite serves public/ in dev and copies it on build, so the only custom
+  // plumbing left is directory-index resolution for preview URLs.
+  const viteConfig = read(path.join(dir, "vite.config.js"));
+  viteConfig.includes("swatchkitDirectoryIndex") &&
+    !viteConfig.includes("serveSwatchkit") &&
+    !viteConfig.includes("copySwatchkitCss") &&
+    !viteConfig.includes("assetFileNames")
+    ? ok("Vite config relies on publicDir instead of a custom static server")
+    : fail("Vite config relies on publicDir instead of a custom static server");
+
+  // Vite copies public/ on build and only mounts public-dir serving if the
+  // directory exists at boot, so SwatchKit has to run first in both flows.
+  reactPkg.scripts?.build === "npm run build:swatchkit && npm run build:app" &&
+    reactPkg.scripts?.dev?.startsWith("npm run patterns &&") &&
+    !reactPkg.scripts?.dev?.includes("build:app")
+    ? ok("SwatchKit runs before Vite in both build and dev")
+    : fail("SwatchKit runs before Vite in both build and dev");
+
+  read(path.join(dir, ".gitignore")).includes("public/swatchkit")
+    ? ok("Generated public/swatchkit is gitignored")
+    : fail("Generated public/swatchkit is gitignored");
+
+  linkNodeModules(dir);
+  runSwatchkit("React swatches build", dir, []);
+
+  const previewDir = path.join(dir, "public/swatchkit/preview/swatches/button");
+  const buttonPreview = path.join(previewDir, "index.html");
+  const buttonClient = path.join(previewDir, "client.js");
+  const buttonHtml = read(buttonPreview);
+  exists(buttonPreview) &&
+    buttonHtml.includes('id="button-gallery-root"') &&
+    buttonHtml.includes('class="button"') &&
+    buttonHtml.includes('src="./client.js"')
+    ? ok("React swatch server-renders one hydrated root")
+    : fail("React swatch server-renders one hydrated root");
+
+  // A development React build is ~1MB and carries its warning machinery;
+  // a production one is a fraction of that.
+  const clientBytes = exists(buttonClient)
+    ? fs.statSync(buttonClient).size
+    : Infinity;
+  clientBytes < 400_000 &&
+    !read(buttonClient).includes("Each child in a list should have a unique")
+    ? ok(`React client bundle is a production build (${clientBytes} bytes)`)
+    : fail(`React client bundle is a production build (${clientBytes} bytes)`);
+
+  !exists(path.join(previewDir, "client.jsx"))
+    ? ok("React client source is not copied into preview")
+    : fail("React client source is not copied into preview");
+}
+
+// 25. React swatch failures stay scoped, and component CSS reaches the preview.
+{
+  console.log("\n[25] React swatch failures are scoped; component CSS is linked");
+  const dir = freshDir("25-react-resilience");
+
+  runSwatchkit("init --app --react", dir, [
+    "init",
+    "--app",
+    "--react",
+    "--cssDir",
+    "./src/css",
+  ]);
+  linkNodeModules(dir);
+
+  // A component that imports its own CSS makes esbuild emit a stylesheet
+  // beside client.js; the preview has to link it.
+  fs.mkdirSync(path.join(dir, "swatchkit/swatches/badge"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "src/components/Badge.css"),
+    ".badge { color: hotpink; }\n",
+  );
+  fs.writeFileSync(
+    path.join(dir, "src/components/Badge.jsx"),
+    'import "./Badge.css";\nexport function Badge() {\n  return <span className="badge">New</span>;\n}\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, "swatchkit/swatches/badge/index.jsx"),
+    'import { renderToString } from "react-dom/server";\n' +
+      'import { Badge } from "../../../src/components/Badge.jsx";\n' +
+      'export default `<div id="badge-root">${renderToString(<Badge />)}</div>`;\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, "swatchkit/swatches/badge/client.jsx"),
+    'import { hydrateRoot } from "react-dom/client";\n' +
+      'import { Badge } from "../../../src/components/Badge.jsx";\n' +
+      'hydrateRoot(document.querySelector("#badge-root"), <Badge />);\n',
+  );
+
+  // A swatch folder with no recognized entry should be reported, not dropped.
+  fs.mkdirSync(path.join(dir, "swatchkit/swatches/orphan"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "swatchkit/swatches/orphan/notes.md"),
+    "no entry file here\n",
+  );
+
+  // Break one swatch's client entry.
+  fs.writeFileSync(
+    path.join(dir, "swatchkit/swatches/button/client.jsx"),
+    "import { hydrateRoot } from \"react-dom/client\";\nhydrateRoot(<<<broken\n",
+  );
+
+  const output = runSwatchkit("build with a broken client.jsx", dir, []);
+
+  exists(path.join(dir, "public/swatchkit/index.html"))
+    ? ok("Broken client.jsx does not abort the library build")
+    : fail("Broken client.jsx does not abort the library build");
+  exists(path.join(dir, "public/swatchkit/preview/swatches/card/index.html")) &&
+    !exists(path.join(dir, "public/swatchkit/preview/swatches/button/index.html"))
+    ? ok("Only the broken swatch is skipped")
+    : fail("Only the broken swatch is skipped");
+
+  const badgeHtml = read(
+    path.join(dir, "public/swatchkit/preview/swatches/badge/index.html"),
+  );
+  // The bundle is minified, so assert on the selector rather than the
+  // authored color keyword (hotpink becomes #ff69b4).
+  badgeHtml.includes('href="./client.css"') &&
+    read(
+      path.join(dir, "public/swatchkit/preview/swatches/badge/client.css"),
+    ).includes(".badge{")
+    ? ok("Component CSS is emitted and linked in the preview")
+    : fail("Component CSS is emitted and linked in the preview");
+
+  output.includes("orphan") && output.includes("no index.js")
+    ? ok("Swatch folder without an entry file is reported")
+    : fail("Swatch folder without an entry file is reported");
 }
 
 // Cleanup
