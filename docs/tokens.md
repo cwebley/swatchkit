@@ -233,24 +233,37 @@ the leaves:
   --vw-max: 1350;  /* max viewport (unitless px) */
   --root-base: 16; /* px base the min/max numbers are authored in (16 = 1rem) */
 
+  /* Fluid source values stay outside @swatchkit blocks. */
+  --fluid-step-0-min: 15;
+  --fluid-step-0-max: 18;
+
   /* @swatchkit text-sizes "Text Sizes" */
   /* 15px at 330px viewport → 18px at 1350px viewport */
   --step-0: clamp(
-    calc(15 / var(--root-base) * 1rem),
+    calc(var(--fluid-step-0-min) / var(--root-base) * 1rem),
     calc(
-      (15 - var(--vw-min) * (18 - 15) / (var(--vw-max) - var(--vw-min)))
+      (var(--fluid-step-0-min) - var(--vw-min) *
+        (var(--fluid-step-0-max) - var(--fluid-step-0-min)) /
+        (var(--vw-max) - var(--vw-min)))
         / var(--root-base) * 1rem
-      + (18 - 15) / (var(--vw-max) - var(--vw-min)) * 100vw
+      + (var(--fluid-step-0-max) - var(--fluid-step-0-min)) /
+        (var(--vw-max) - var(--vw-min)) * 100vw
     ),
-    calc(18 / var(--root-base) * 1rem)
+    calc(var(--fluid-step-0-max) / var(--root-base) * 1rem)
   );
   /* @swatchkit end */
 }
 ```
 
 Why unitless? CSS `calc()` can divide by a unitless number (`/ 1020`) but not by
-a unitful one (`/ 1020px`). Keeping the bounds unitless and multiplying by
-`1rem` / `100vw` at the end keeps the math valid.
+a unitful one (`/ 1020px`). Keeping the viewport bounds, root base, and each
+fluid token's min/max source values unitless keeps the math valid. Units are
+applied only at the leaves with `1rem` and `100vw`.
+
+The `--fluid-<token>-min` and `--fluid-<token>-max` variables are intentionally
+outside the `@swatchkit` block. Custom properties inside a block are treated as
+documented tokens and may generate utilities; these source values are only
+inputs to the public fluid token.
 
 `--root-base` is the px base your min/max numbers are written in — it is **not** an
 assumption about the user's browser font size. The `clamp()` floors and ceilings
@@ -260,8 +273,9 @@ is declared explicitly). Only change it if you author the min/max values in a
 different px base.
 
 The `swatchkit init` blueprint ships a full fluid type and spacing scale already
-written this way — copy a line and change the two numbers (min, max) to add a
-step. Adjust `--vw-min` / `--vw-max` to retune every fluid token at once.
+written this way. To add a step, copy an existing min/max pair and its `clamp()`
+declaration, rename the variables, and change the two source values. Adjust
+`--vw-min` / `--vw-max` to retune every fluid token at once.
 
 > **Future:** when the CSS `@function` rule reaches cross-browser support, these
 > can collapse to `--step-0: --fluid(15, 18);` with no change to consumers.

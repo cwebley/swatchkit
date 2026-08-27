@@ -1064,6 +1064,51 @@ function read(p) {
   }
 }
 
+// 26. Fluid type and spacing formulas use editable source variables without
+// exposing those helpers as documented tokens or generated utilities.
+{
+  console.log("\n[26] Fluid type and spacing source variables");
+  const dir = freshDir("26-fluid-source-variables");
+  fs.writeFileSync(path.join(dir, "package.json"), ESM_PKG);
+  runSwatchkit("init", dir, ["init", "--cssDir", "./src/css"]);
+
+  const tokens = read(path.join(dir, "src/css/global/tokens.css"));
+  const textSizesMarker = tokens.indexOf('/* @swatchkit text-sizes "Text Sizes" */');
+  const spacingMarker = tokens.indexOf('/* @swatchkit spacing "Spacing" */');
+  const textSizesBlock = tokens.slice(textSizesMarker, tokens.indexOf("/* @swatchkit end */", textSizesMarker));
+  const spacingBlock = tokens.slice(spacingMarker, tokens.indexOf("/* @swatchkit end */", spacingMarker));
+  const utilities = read(path.join(dir, "src/css/utilities/utilities.css"));
+  const textSizesPreview = read(path.join(dir, "dist/swatchkit/preview/tokens/text-sizes/index.html"));
+
+  tokens.includes("--fluid-step-3-min: 21.36;") &&
+  tokens.includes("--fluid-step-3-max: 31.1;") &&
+  tokens.includes("--fluid-space-s-l-min: 14;") &&
+  tokens.includes("--fluid-space-s-l-max: 40;")
+    ? ok("fluid type and spacing source values are scaffolded")
+    : fail("fluid type and spacing source values are scaffolded");
+  textSizesMarker > tokens.indexOf("--fluid-step-3-min") &&
+  spacingMarker > tokens.indexOf("--fluid-space-s-l-min")
+    ? ok("fluid source values stay outside token blocks")
+    : fail("fluid source values stay outside token blocks");
+  textSizesBlock.includes("var(--fluid-step-3-min)") &&
+  textSizesBlock.includes("var(--fluid-step-3-max)") &&
+  !textSizesBlock.includes("21.36") &&
+  !textSizesBlock.includes("31.1")
+    ? ok("type clamp references source variables")
+    : fail("type clamp references source variables");
+  spacingBlock.includes("var(--fluid-space-s-l-min)") &&
+  spacingBlock.includes("var(--fluid-space-s-l-max)") &&
+  !spacingBlock.includes("(40 - 14)")
+    ? ok("spacing clamp references source variables")
+    : fail("spacing clamp references source variables");
+  !utilities.includes("fluid-step-3-min") && !utilities.includes("fluid-space-s-l-min")
+    ? ok("fluid source variables do not generate utilities")
+    : fail("fluid source variables do not generate utilities");
+  !textSizesPreview.includes("fluid-step-3-min") && !textSizesPreview.includes("fluid-step-3-max")
+    ? ok("fluid source variables do not appear in token docs")
+    : fail("fluid source variables do not appear in token docs");
+}
+
 // Cleanup
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 
